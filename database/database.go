@@ -1,0 +1,63 @@
+package database
+
+import (
+	"database/sql"
+	"log"
+
+	"forum/config"
+
+	_ "github.com/mattn/go-sqlite3"
+)
+
+// DB is the global database connection used with all models
+var DB *sql.DB
+
+// Init initializes the database connection and runs migrations
+func Init() {
+	var err error
+
+	// Open connection to SQLite database
+	DB, err = sql.Open("sqlite3", config.GetDatabaseURL())
+	if err != nil {
+		log.Fatal("Failed to connect to databse:", err)
+	}
+
+	// Test the database connection with Ping()
+	if err = DB.Ping(); err != nil {
+		log.Fatal("Failed to ping database:", err)
+	}
+
+	// Configure connection pool settings for better performance
+	DB.SetMaxOpenConns(25)
+	DB.SetMaxIdleConns(25)
+	DB.SetConnMaxLifetime(5 * 60)
+
+	log.Println("Database connected successfully")
+
+	// Create all tables and insert default data
+	// RunMigrations()
+}
+
+// Close closes the database connection
+func Close() {
+	if DB != nil {
+		DB.Close()
+		log.Println("Database connection closed")
+	}
+}
+
+// GetDB returns the database connection
+// so models and other packages may use this to perform operations
+func GetDB() *sql.DB {
+	return DB
+}
+
+
+// HealthCheck verifies the database is still responsive
+func HealthCheck()error{
+	if DB == nil {
+		return sql.ErrConnDone
+	}
+	return DB.Ping()
+}
+

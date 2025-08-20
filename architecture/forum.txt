@@ -1,0 +1,77 @@
+Project Overview
+You're building a full-stack web forum with these core features:
+🔐 Authentication System
+
+User registration (email, username, password)
+Login sessions with cookies
+Password encryption (bonus: bcrypt)
+Session management with expiration
+UUID for sessions (bonus)
+
+💬 Communication Features
+
+Posts creation (registered users only)
+Comments on posts (registered users only)
+Category association for posts
+Public viewing (all users can see content)
+
+👍👎 Interaction System
+
+Like/dislike posts and comments (registered users only)
+Vote counts visible to everyone
+
+🔍 Filtering System
+
+Filter by categories (like subforums)
+Filter by user's own posts (registered users)
+Filter by user's liked posts (registered users)
+
+🛠 Technical Requirements
+
+Backend: Go with standard library
+Database: SQLite with proper schema design
+Frontend: Pure HTML/CSS/JS (no frameworks)
+Containerization: Docker
+Error Handling: HTTP status codes and technical errors
+Testing: Unit tests recommended
+
+Additional Implementation Tips:
+
+🎯 Start Simple, Build Incrementally
+
+Phase 1: Basic server + SQLite connection
+Phase 2: User registration/login
+Phase 3: Posts and categories
+Phase 4: Comments and votes
+Phase 5: Filtering and Docker
+
+🛡️ Security Best Practices
+
+Use bcrypt for password hashing
+Implement CSRF protection
+Validate all inputs
+Use prepared statements to prevent SQL injection
+Set secure cookie flags
+
+📊 Database Design Tips
+
+Create indexes on frequently queried columns
+Use foreign key constraints
+Consider soft deletes for posts/comments
+Store vote counts as computed fields for performance
+
+🐳 Docker Strategy
+
+Use multi-stage builds for smaller images
+Copy only necessary files
+Use .dockerignore to exclude unnecessary files
+Consider using Alpine Linux base image
+
+🧪 Testing Approach
+
+Test database operations with a separate test database
+Mock external dependencies
+Test authentication flows thoroughly
+Include integration tests for critical paths
+
+This structure will give you a solid foundation that's scalable, maintainable, and follows Go best practices. Start with the core functionality and gradually add features!

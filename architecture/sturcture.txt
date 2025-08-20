@@ -1,0 +1,38 @@
+                  ┌───────────────┐
+                  │    main.go    │
+                  └───────┬───────┘
+                          │
+                          ▼
+                  ┌───────────────┐
+                  │    routes/    │
+                  │  routes.go    │
+                  └───────┬───────┘
+                          │
+                          ▼
+              ┌─────────────────────┐
+              │     controllers/    │
+              │ auth / post / ...   │
+              └───────┬─────────────┘
+                      │
+       ┌──────────────┼──────────────┐
+       ▼              ▼              ▼
+┌────────────┐  ┌──────────────┐  ┌───────────────┐
+│ middleware │  │   utils/     │  │   views/      │
+│ auth,cors  │  │ sessions,    │  │ layouts,tmpl  │
+└──────┬─────┘  │ validation   │  └───────────────┘
+       │        └──────────────┘
+       │
+       ▼
+┌──────────────────┐
+│     models/       │
+│ user,post,comment │
+└───────┬───────────┘
+        │
+        ▼
+┌──────────────────┐
+│    database/      │
+│ db init, migrate  │
+└──────────────────┘
+
+Static files (css/js/images) served directly from static/
+Config (config.go) used globally
