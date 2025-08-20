@@ -35,7 +35,7 @@ func Init() {
 	log.Println("Database connected successfully")
 
 	// Create all tables and insert default data
-	// RunMigrations()
+	RunMigrations()
 }
 
 // Close closes the database connection

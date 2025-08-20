@@ -20,6 +20,7 @@ func main() {
 	// router :=
 
 	var router http.Handler
+
 	// Start server
 	log.Printf("Server starting on http://localshost%s", config.GetPort())
 	log.Fatal(http.ListenAndServe(config.GetPort(), router))
