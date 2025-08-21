@@ -1,0 +1,79 @@
+Middleware Overview
+===================
+
+This file contains middleware functions for the forum project.
+Middleware are functions that run before or after HTTP handlers to handle tasks
+like authentication, authorization, logging, rate limiting, and CORS.
+
+Context Keys
+------------
+- UserIDKey:   stores the user's ID in request context
+- UsernameKey: stores the username in request context
+- SessionKey:  stores the session object in request context
+
+Authentication Middleware
+-------------------------
+1. RequireAuth
+   - Ensures the user is logged in
+   - Validates session expiration
+   - Adds user info to request context
+   - Refreshes session if near expiration
+
+2. OptionalAuth
+   - Adds user info to context if logged in
+   - Continues without authentication if no valid session
+
+3. RequireOwnership
+   - Checks that the current user owns a resource
+   - Requires a function to get the resource's owner ID
+   - Returns 403 Forbidden if ownership check fails
+
+Context Helper Functions
+------------------------
+- GetUserIDFromContext(r *http.Request) (int, bool)
+- GetUsernameFromContext(r *http.Request) (string, bool)
+- GetSessionFromContext(r *http.Request) (*utils.Session, bool)
+
+HTTP Method Middleware
+----------------------
+- RequireValidMethod(allowedMethods ...string)
+  - Ensures the request method matches allowed methods
+  - Returns 405 Method Not Allowed if not allowed
+
+Rate Limiting Middleware
+------------------------
+- RateLimit(maxRequests int, timeWindow time.Duration)
+  - Limits the number of requests per client IP
+  - Simple in-memory store (not suitable for production)
+  - Returns 429 Too Many Requests if limit exceeded
+
+Content-Type Middleware
+-----------------------
+- ContentTypeJSON
+  - Ensures request Content-Type is application/json
+  - Skips check for GET requests
+  - Returns 400 Bad Request if Content-Type is invalid
+
+Logging Middleware
+------------------
+- LogRequests
+  - Logs method, path, status code, duration, client IP, and user info
+  - Wraps ResponseWriter to capture HTTP status code
+
+CORS Middleware
+---------------
+- CORS
+  - Handles Cross-Origin Resource Sharing
+  - Sets headers like Access-Control-Allow-Origin, Methods, Headers
+  - Handles preflight OPTIONS requests
+
+Helper Functions
+----------------
+- getClientIP(r *http.Request) string
+  - Retrieves the client IP from X-Forwarded-For, X-Real-IP, or RemoteAddr
+
+- joinMethods(methods []string) string
+  - Joins allowed HTTP methods for the Allow header
+
+- responseWriter
+  - Wrapper to capture status code from HTTP responses

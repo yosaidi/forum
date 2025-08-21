@@ -1,0 +1,46 @@
+Configuration Overview
+======================
+
+This file contains the configuration management for the forum project.
+It centralizes all application settings and provides helper functions
+to access them safely throughout the codebase.
+
+Config Struct
+-------------
+Struct: Config
+- Port        string  : HTTP server port (e.g., ":8080")
+- DatabaseURL string  : Path to the SQLite database file
+- SecretKey   string  : Secret key used for session encryption and security
+- Environment string  : Application environment ("development", "production", "test")
+
+Global Instance
+---------------
+- AppConfig Config : Global configuration instance accessible across the application
+
+Functions
+---------
+
+1. Load()
+   - Initializes the AppConfig instance
+   - Reads environment variables for configuration settings
+   - Falls back to default values if environment variables are not set
+   - Logs "Configuration loaded" once done
+
+2. GetPort() string
+   - Returns the HTTP server port from AppConfig
+
+3. GetDatabaseURL() string
+   - Returns the database file path from AppConfig
+
+4. GetSecretKey() string
+   - Returns the secret key for encryption and session security
+
+5. IsDevelopment() bool
+   - Checks if the current environment is "development"
+   - Useful for toggling debug features or CORS policies
+
+Helper Functions
+----------------
+- getEnv(key string, defaultValue string) string
+   - Reads an environment variable by key
+   - Returns defaultValue if the environment variable is not set
