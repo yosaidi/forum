@@ -3,8 +3,9 @@ package models
 import (
 	"database/sql"
 	"errors"
-	"forum/database"
 	"time"
+
+	"forum/database"
 )
 
 // Vote represents a like or dislike on a post or comment
@@ -349,4 +350,16 @@ func CleanupOrphanedVotes() error {
 	}
 
 	return tx.Commit()
+}
+
+// GetByUserAndPost fetches the vote a user made on a specific post
+func (v *Vote) GetByUserAndPost(userID, postID int) error {
+	query := `SELECT id, user_id, post_id, vote_type, created_at FROM votes WHERE user_id = ? AND post_id = ? LIMIT 1`
+	return database.GetDB().QueryRow(query, userID, postID).Scan(
+		&v.ID,
+		&v.UserID,
+		&v.PostID,
+		&v.VoteType,
+		&v.CreatedAt,
+	)
 }

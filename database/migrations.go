@@ -25,12 +25,13 @@ func createUsersTable() {
 		username VARCHAR(50) UNIQUE NOT NULL,
 		email VARCHAR(100) UNIQUE NOT NULL,
 		password_hash VARCHAR(255) NOT NULL,
+		avatar VARCHAR(255) DEFAULT '',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 
 	if _, err := DB.Exec(query); err != nil {
-		log.Fatal("Failed to create users tables:", err)
+		log.Fatal("Failed to create users table:", err)
 	}
 
 	// Create indexes for performance on frequently queried columns
@@ -43,11 +44,11 @@ func createUsersTable() {
 // createCategoriesTable creates the categories table for forum sections
 func createCategoriesTable() {
 	query := `
-	CREATE TABLE IF NOR EXISTS categories (
+	CREATE TABLE IF NOt EXISTS categories (
 	  id INTEGER PRIMARY KEY AUTOINCREMENT,
 	  name VARCHAR(50) UNIQUE NOT NULL,
 	  description TEXT,
-	  created_at DATETIME DEFAUT CURRENT_TIMESTAMP
+	  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 
 	if _, err := DB.Exec(query); err != nil {
@@ -66,7 +67,7 @@ func createCategoriesTable() {
 // createPostsTable creates the posts table for forum discussions
 func createPostsTable() {
 	query := `
-	CREATE TABLE IF NOR EXISTS posts(
+	CREATE TABLE IF NOt EXISTS posts(
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	title VARCHAR(255) NOT NULL,
 	content TEXT NOT NULL,

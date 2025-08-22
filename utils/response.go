@@ -74,6 +74,11 @@ func InternalServerError(w http.ResponseWriter, message string) {
 	Error(w, http.StatusInternalServerError, message)
 }
 
+// MethodNotAllowed send a 405 Method Not Allowed JSON response
+func MethodNotAllowed(w http.ResponseWriter, message string) {
+	Error(w, http.StatusMethodNotAllowed, message)
+}
+
 // ValidationError sends a 422 Unprocessable Entity JSON response
 // Used for validation errors with detailed field information
 func ValidationError(w http.ResponseWriter, errors map[string]string) {

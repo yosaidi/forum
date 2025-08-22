@@ -56,6 +56,14 @@ func ValidateEmail(email string) error {
 	return nil
 }
 
+// ValidateEmail returns string error message (for individual validation)
+func ValidateEmailString(email string) string {
+	if err := ValidateEmail(email); err != nil {
+		return err.Error()
+	}
+	return ""
+}
+
 // ValidateUsername checks if a username is valid
 func ValidateUsername(username string) error {
 	if username == "" {
@@ -81,6 +89,14 @@ func ValidateUsername(username string) error {
 	}
 
 	return nil
+}
+
+// ValidateUsername returns string error message (for individual validation)
+func ValidateUsernameString(username string) string {
+	if err := ValidateUsername(username); err != nil {
+		return err.Error()
+	}
+	return ""
 }
 
 // ValidatePassword checks if a password meets security requirements

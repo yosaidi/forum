@@ -167,6 +167,11 @@ func GetUserFromSession(r *http.Request) (int, error) {
 	return session.UserID, nil
 }
 
+// GetUserIDFromSession is an alias for GetUserFromSession for consistency
+func GetUserIDFromSession(r *http.Request) (int, error) {
+	return GetUserFromSession(r)
+}
+
 // IsLoggedIn checks if request has valid session
 func IsLoggedIn(r *http.Request) bool {
 	_, err := GetSessionFromRequest(r)

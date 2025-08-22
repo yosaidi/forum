@@ -17,6 +17,7 @@ type User struct {
 	PasswordHash string    `json:"-"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+	Avatar       string    `json:"avatar"`
 }
 
 // Create user and insert it to the database
@@ -41,12 +42,12 @@ func (u *User) Create() error {
 	}
 
 	query := `
-	INSERT INTO users (username, email, password_hash, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?)
+	INSERT INTO users (username, email, password_hash, avatar, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)
 	`
 
 	now := time.Now()
-	result, err := database.GetDB().Exec(query, u.Username, u.Email, u.PasswordHash, now, now)
+	result, err := database.GetDB().Exec(query, u.Username, u.Email, u.PasswordHash, u.Avatar, now, now)
 	if err != nil {
 		return err
 	}
@@ -64,23 +65,23 @@ func (u *User) Create() error {
 
 // GetByUsername fills the user struct with data from the database taking username as input.
 func (u *User) GetByUsername(username string) error {
-	query := `SELECT id, username, email, password_hash, created_at, updated_at FROM users WHERE username = ?`
+	query := `SELECT id, username, email, password_hash, avatar, created_at, updated_at FROM users WHERE username = ?`
 	row := database.GetDB().QueryRow(query, username)
-	return row.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.CreatedAt, &u.UpdatedAt)
+	return row.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Avatar, &u.CreatedAt, &u.UpdatedAt)
 }
 
-// GetByUsername fills the user struct with data from the database taking email as input.
+// GetByEmail fills the user struct with data from the database taking email as input.
 func (u *User) GetByEmail(email string) error {
-	query := `SELECT id, username, email, password_hash, created_at, updated_at FROM users WHERE email = ?`
+	query := `SELECT id, username, email, password_hash, avatar, created_at, updated_at FROM users WHERE email = ?`
 	row := database.GetDB().QueryRow(query, email)
-	return row.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.CreatedAt, &u.UpdatedAt)
+	return row.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Avatar, &u.CreatedAt, &u.UpdatedAt)
 }
 
-// GetByUsername fills the user struct with data from the database taking id as input.
+// GetByID fills the user struct with data from the database taking id as input.
 func (u *User) GetByID(id int) error {
-	query := `SELECT id, username, email, password_hash, created_at, updated_at FROM users WHERE id = ?`
+	query := `SELECT id, username, email, password_hash, avatar, created_at, updated_at FROM users WHERE id = ?`
 	row := database.GetDB().QueryRow(query, id)
-	return row.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.CreatedAt, &u.UpdatedAt)
+	return row.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.Avatar, &u.CreatedAt, &u.UpdatedAt)
 }
 
 // Exists checks for duplicate users
@@ -111,6 +112,11 @@ func (u *User) VerifyPassword(password string) bool {
 	return err == nil
 }
 
+// CheckPassword is an alias for VerifyPassword for consistency
+func (u *User) CheckPassword(password string) bool {
+	return u.VerifyPassword(password)
+}
+
 // UpdatePassword updates the user's password with a new hashed password
 func (u *User) UpdatePassword(newPassword string) error {
 	if strings.TrimSpace(newPassword) == "" {
@@ -131,6 +137,42 @@ func (u *User) UpdatePassword(newPassword string) error {
 	}
 
 	u.PasswordHash = string(hashedBytes)
+	u.UpdatedAt = now
+	return nil
+}
+
+// GetAvatarURL returns the user's avatar URL or default if empty
+func (u *User) GetAvatarURL() string {
+	if strings.TrimSpace(u.Avatar) == "" {
+		return "/static/avatars/default.png"
+	}
+	return u.Avatar
+}
+
+// UpdateAvatar updates the user's avatar
+func (u *User) UpdateAvatar(avatarURL string) error {
+	query := `UPDATE users SET avatar = ?, updated_at = ? WHERE id = ?`
+	now := time.Now()
+
+	_, err := database.GetDB().Exec(query, avatarURL, now, u.ID)
+	if err != nil {
+		return err
+	}
+
+	u.Avatar = avatarURL
+	u.UpdatedAt = now
+	return nil
+}
+
+// UpdateLastLogin update the last login timestamp for the user
+func (u *User) UpdateLastLogin() error {
+	query := `UPDATE users SET updated_at = ? WHERE id = ?`
+	now := time.Now()
+
+	_, err := database.GetDB().Exec(query, now, u.ID)
+	if err != nil {
+		return err
+	}
 	u.UpdatedAt = now
 	return nil
 }

@@ -77,12 +77,21 @@ func (c *Comment) GetByID(id int, userID *int) error {
 	return nil
 }
 
-// GetCommentsByPostID retrieves all comments for a specific post
-func GetCommentsByPostID(postID int, userID *int, limit, offset int) ([]Comment, error) {
-	var comments []Comment
 
+// GetUserComments retrieves all comments made by a specific user
+func GetCommentsByPostID(postID int, userID *int, limit, offset int) ([]Comment, int, error) {
+	comments := []Comment{}
+
+	// Get total number of comments for pagination
+	var total int
+	countQuery := `SELECT COUNT(*) FROM comments WHERE post_id = ?`
+	if err := database.GetDB().QueryRow(countQuery, postID).Scan(&total); err != nil {
+		return comments, 0, err
+	}
+
+	// Get paginated comments
 	query := `
-		SELECT c.id, c.content, c.user_id, u.username, c.post_id,
+		SELECT c.id, c.user_id, u.username, c.post_id, c.content,
 		       c.likes, c.dislikes, c.created_at, c.updated_at
 		FROM comments c
 		JOIN users u ON c.user_id = u.id
@@ -90,66 +99,33 @@ func GetCommentsByPostID(postID int, userID *int, limit, offset int) ([]Comment,
 		ORDER BY c.created_at ASC
 		LIMIT ? OFFSET ?
 	`
-
 	rows, err := database.GetDB().Query(query, postID, limit, offset)
 	if err != nil {
-		return comments, err
+		return comments, 0, err
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var comment Comment
-		err := rows.Scan(&comment.ID, &comment.Content, &comment.UserID, &comment.Username,
-			&comment.PostID, &comment.Likes, &comment.Dislikes,
-			&comment.CreatedAt, &comment.UpdatedAt)
+		var c Comment
+		err := rows.Scan(&c.ID, &c.UserID, &c.Username, &c.PostID, &c.Content,
+			&c.Likes, &c.Dislikes, &c.CreatedAt, &c.UpdatedAt)
 		if err != nil {
 			continue
 		}
 
-		// Get user vote if logged in
+		// If user is authenticated, check if they voted on this comment
 		if userID != nil {
-			comment.getUserVote(*userID)
+			var voteType string
+			voteQuery := `SELECT vote_type FROM votes WHERE user_id = ? AND comment_id = ? LIMIT 1`
+			if err := database.GetDB().QueryRow(voteQuery, *userID, c.ID).Scan(&voteType); err == nil {
+				c.UserVote = &voteType
+			}
 		}
 
-		comments = append(comments, comment)
+		comments = append(comments, c)
 	}
 
-	return comments, nil
-}
-
-// GetUserComments retrieves all comments made by a specific user
-func GetUserComments(userID int, limit, offset int) ([]Comment, error) {
-	var comments []Comment
-
-	query := `
-		SELECT c.id, c.content, c.user_id, u.username, c.post_id,
-		       c.likes, c.dislikes, c.created_at, c.updated_at
-		FROM comments c
-		JOIN users u ON c.user_id = u.id
-		WHERE c.user_id = ?
-		ORDER BY c.created_at DESC
-		LIMIT ? OFFSET ?
-	`
-
-	rows, err := database.GetDB().Query(query, userID, limit, offset)
-	if err != nil {
-		return comments, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var comment Comment
-		err := rows.Scan(&comment.ID, &comment.Content, &comment.UserID, &comment.Username,
-			&comment.PostID, &comment.Likes, &comment.Dislikes,
-			&comment.CreatedAt, &comment.UpdatedAt)
-		if err != nil {
-			continue
-		}
-
-		comments = append(comments, comment)
-	}
-
-	return comments, nil
+	return comments, total, nil
 }
 
 // Update modifies an existing comment
