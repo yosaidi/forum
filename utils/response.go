@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 )
 
 type APIResponse struct {
@@ -150,4 +152,15 @@ func EnableCORS(w http.ResponseWriter) {
 func HandleOptionsRequest(w http.ResponseWriter) {
 	EnableCORS(w)
 	w.WriteHeader(http.StatusOK)
+}
+
+// Add to utils or create route_helpers.go
+func GetIDFromURL(r *http.Request, prefix string) (int, error) {
+	path := strings.TrimPrefix(r.URL.Path, "/api")
+	remaining := strings.TrimPrefix(path, prefix)
+	parts := strings.Split(remaining, "/")
+	if len(parts) == 0 {
+		return 0, errors.New("no ID found")
+	}
+	return strconv.Atoi(parts[0])
 }

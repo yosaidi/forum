@@ -10,18 +10,16 @@ import (
 	"forum/database"
 	"forum/models"
 	"forum/utils"
-
-	"github.com/gorilla/mux"
 )
 
 // UserProfile represents the public user profile data
 type UserProfile struct {
-	ID        int       `json:"id"`
-	Username  string    `json:"username"`
-	Avatar    string    `json:"avatar"`
-	CreatedAt time.Time `json:"created_at"`
-	PostCount int       `json:"post_count"`
-	CommentCount int    `json:"comment_count"`
+	ID           int       `json:"id"`
+	Username     string    `json:"username"`
+	Avatar       string    `json:"avatar"`
+	CreatedAt    time.Time `json:"created_at"`
+	PostCount    int       `json:"post_count"`
+	CommentCount int       `json:"comment_count"`
 }
 
 // UserStats represents detailed user statistics
@@ -39,10 +37,7 @@ type UserUpdateRequest struct {
 
 // GetUserProfileController handles GET /api/users/{id}
 func GetUserProfileController(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	userIDStr := vars["id"]
-	
-	userID, err := strconv.Atoi(userIDStr)
+	userID, err := utils.GetIDFromURL(r, "/users/")
 	if err != nil {
 		utils.BadRequest(w, "Invalid user ID")
 		return
@@ -95,9 +90,7 @@ func UpdateUserProfileController(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	vars := mux.Vars(r)
-	userIDStr := vars["id"]
-	userID, err := strconv.Atoi(userIDStr)
+	userID, err := utils.GetIDFromURL(r, "/users/")
 	if err != nil {
 		utils.BadRequest(w, "Invalid user ID")
 		return
@@ -127,9 +120,9 @@ func UpdateUserProfileController(w http.ResponseWriter, r *http.Request) {
 
 	// Return updated profile
 	profile := UserProfile{
-		ID:       currentUser.ID,
-		Username: currentUser.Username,
-		Avatar:   currentUser.GetAvatarURL(),
+		ID:        currentUser.ID,
+		Username:  currentUser.Username,
+		Avatar:    currentUser.GetAvatarURL(),
 		CreatedAt: currentUser.CreatedAt,
 	}
 
@@ -138,9 +131,7 @@ func UpdateUserProfileController(w http.ResponseWriter, r *http.Request) {
 
 // GetUserPostsController handles GET /api/users/{id}/posts
 func GetUserPostsController(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	userIDStr := vars["id"]
-	userID, err := strconv.Atoi(userIDStr)
+	userID, err := utils.GetIDFromURL(r, "/users/")
 	if err != nil {
 		utils.BadRequest(w, "Invalid user ID")
 		return
@@ -189,7 +180,7 @@ func GetUserPostsController(w http.ResponseWriter, r *http.Request) {
 		"limit":       limit,
 		"total":       totalPosts,
 		"total_pages": (totalPosts + limit - 1) / limit,
-		"user":        map[string]interface{}{
+		"user": map[string]interface{}{
 			"id":       user.ID,
 			"username": user.Username,
 			"avatar":   user.GetAvatarURL(),
@@ -201,9 +192,7 @@ func GetUserPostsController(w http.ResponseWriter, r *http.Request) {
 
 // GetUserCommentsController handles GET /api/users/{id}/comments
 func GetUserCommentsController(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	userIDStr := vars["id"]
-	userID, err := strconv.Atoi(userIDStr)
+	userID, err := utils.GetIDFromURL(r, "/users/")
 	if err != nil {
 		utils.BadRequest(w, "Invalid user ID")
 		return
@@ -252,7 +241,7 @@ func GetUserCommentsController(w http.ResponseWriter, r *http.Request) {
 		"limit":       limit,
 		"total":       totalComments,
 		"total_pages": (totalComments + limit - 1) / limit,
-		"user":        map[string]interface{}{
+		"user": map[string]interface{}{
 			"id":       user.ID,
 			"username": user.Username,
 			"avatar":   user.GetAvatarURL(),
@@ -264,9 +253,7 @@ func GetUserCommentsController(w http.ResponseWriter, r *http.Request) {
 
 // GetUserStatsController handles GET /api/users/{id}/stats
 func GetUserStatsController(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	userIDStr := vars["id"]
-	userID, err := strconv.Atoi(userIDStr)
+	userID, err := utils.GetIDFromURL(r, "/users/")
 	if err != nil {
 		utils.BadRequest(w, "Invalid user ID")
 		return

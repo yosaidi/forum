@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 
 	"forum/config"
 	"forum/database"
+	"forum/routes"
 )
 
 func main() {
@@ -17,11 +19,17 @@ func main() {
 	defer database.Close()
 
 	// setup routes (later)
-	// router :=
+	mux := routes.SetupRoutes()
 
-	var router http.Handler
+	// Optional: Print all routes for debugging
+	fmt.Println("Available routes:")
+	for _, route := range routes.GetRoutesList() {
+		fmt.Printf("  %s\n", route)
+	}
 
 	// Start server
-	log.Printf("Server starting on http://localshost%s", config.GetPort())
-	log.Fatal(http.ListenAndServe(config.GetPort(), router))
+	log.Printf("Server starting on http://localhost%s", config.GetPort())
+	if err := http.ListenAndServe(config.GetPort(), mux); err != nil {
+		log.Fatal("Server failed to start:", err)
+	}
 }
