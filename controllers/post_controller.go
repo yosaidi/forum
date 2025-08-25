@@ -398,12 +398,13 @@ func VotePostController(w http.ResponseWriter, r *http.Request) {
 
 // getPostIDFromPath extracts post ID from URL path like /posts/123
 func getPostIDFromPath(path string) (int, error) {
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if len(parts) < 2 {
+	// Remove "/api/posts/" prefix
+	path = strings.TrimPrefix(path, "/api/posts/")
+	parts := strings.Split(path, "/")
+	if len(parts) == 0 {
 		return 0, errors.New("invalid path format")
 	}
-
-	return strconv.Atoi(parts[1])
+	return strconv.Atoi(parts[0])
 }
 
 // getPostResponse converts a Post model to PostResponse with additional data

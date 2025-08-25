@@ -417,15 +417,12 @@ func VoteCommentController(w http.ResponseWriter, r *http.Request) {
 // getCommentIDFromPath extracts comment ID from URL path like /comments/123
 func getCommentIDFromPath(path string) (int, error) {
 	// Handle paths like /comments/123 or /comments/123/vote
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-
-	for i, part := range parts {
-		if part == "comments" && i+1 < len(parts) {
-			return strconv.Atoi(parts[i+1])
-		}
-	}
-
-	return 0, errors.New("invalid comment path format")
+    path = strings.TrimPrefix(path, "/api/comments/")
+    parts := strings.Split(path, "/")
+    if len(parts) == 0 {
+        return 0, errors.New("invalid path format")
+    }
+    return strconv.Atoi(parts[0])
 }
 
 // getPostIDFromCommentsPath extracts post ID from comments URL like /posts/123/comments

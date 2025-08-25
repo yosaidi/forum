@@ -17,10 +17,12 @@ func SetupRoutes() *http.ServeMux {
 	mux.Handle("/api/", middleware.CORS(middleware.LogRequests(apiHandler())))
 
 	// Static files (if needed)
-	// mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./views/static/"))))
 
-	// Serve frontend (if serving SPA from views)
-	mux.Handle("/", http.FileServer(http.Dir("./views/")))
+	// Serve SPA (index.html) for the root
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./views/index.html")
+	})
 
 	return mux
 }
@@ -149,7 +151,7 @@ func matchPath(path, prefix string, expectID bool, suffix ...string) bool {
 // Example: extractIDFromPath("/api/posts/123") returns 123
 func extractIDFromPath(path, prefix string) (int, error) {
 	remaining := strings.TrimPrefix(path, prefix)
-	parts := strings.Split(remaining, "/")
+	parts := strings.FieldsFunc(remaining, func(r rune) bool { return r == '/' })
 	if len(parts) == 0 {
 		return 0, http.ErrNotSupported
 	}
