@@ -333,7 +333,6 @@
 
             // Voting
             async votePost(postId, voteType) {
-                console.log('Voting on post ID:', postId);
 
                 if (!state.user) {
                     this.showMessage('Please login to vote', 'error');
@@ -471,37 +470,72 @@
             },
 
             // Categories
+
             async loadCategories() {
                 try {
-                    // Since your backend doesn't seem to have a categories endpoint,
-                    // we'll use the posts endpoint to extract categories
-                    const response = await apiRequest('/posts?limit=100');
+                    const response = await apiRequest('/categories');
                     
                     if (response.success) {
-                        const categories = [...new Set(response.data.map(post => post.category))];
-                        state.categories = categories.map((cat, index) => ({ id: index + 1, name: cat }));
+                        state.categories = response.data;
                         this.renderCategories();
                     }
                 } catch (error) {
                     console.error('Failed to load categories:', error);
+                    // Fallback to empty categories
+                    state.categories = [];
+                    this.renderCategories();
                 }
             },
 
+            // Also update loadCategoriesForForm to use the API:
+
+            async loadCategoriesForForm() {
+                try {
+                    const response = await apiRequest('/categories');
+                    const select = document.getElementById('post-category');
+                    select.innerHTML = '<option value="">Select a category</option>';
+                    
+                    if (response.success) {
+                        response.data.forEach(category => {
+                            const option = document.createElement('option');
+                            option.value = category.id;
+                            option.textContent = category.name;
+                            select.appendChild(option);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Failed to load categories for form:', error);
+                    // Fallback to some default categories
+                    const select = document.getElementById('post-category');
+                    select.innerHTML = `
+                        <option value="">Select a category</option>
+                        <option value="1">general</option>
+                        <option value="2">tech</option>
+                        <option value="3">programming</option>
+                        <option value="4">web-dev</option>
+                        <option value="5">mobile</option>
+                    `;
+                }
+            },
             renderCategories() {
                 const container = document.getElementById('categories');
-                const allButton = container.querySelector('li button');
                 
-                // Clear existing categories (except "All Posts")
-                const existingCategories = container.querySelectorAll('li:not(:first-child)');
-                existingCategories.forEach(li => li.remove());
+                // Clear existing categories
+                container.innerHTML = '';
+                
+                // Add "All Posts" button first
+                const allLi = document.createElement('li');
+                allLi.innerHTML = '<button class="active" onclick="app.filterByCategory(null)">All Posts</button>';
+                container.appendChild(allLi);
 
                 // Add category buttons
                 state.categories.forEach(category => {
                     const li = document.createElement('li');
-                    li.innerHTML = `<button onclick="app.filterByCategory('${category.name}')">${category.name}</button>`;
+                    li.innerHTML = `<button onclick="app.filterByCategory(${category.id})">${this.escapeHtml(category.name)}</button>`;
                     container.appendChild(li);
                 });
             },
+
 
             async loadCategoriesForForm() {
                 try {
@@ -529,8 +563,8 @@
             },
 
             // Filtering and Sorting
-            filterByCategory(categoryName) {
-                state.currentCategory = categoryName;
+            filterByCategory(categoryId) {
+                state.currentCategory = categoryId;
                 state.currentPage = 1;
                 
                 // Update active category button
@@ -538,9 +572,13 @@
                     btn.classList.remove('active');
                 });
                 
-                event.target.classList.add('active');
+                // Add active class to clicked button
+                if (event && event.target) {
+                    event.target.classList.add('active');
+                }
                 
                 this.loadPosts(1);
+                this.showHome();
             },
 
             changeSorting(sortBy) {

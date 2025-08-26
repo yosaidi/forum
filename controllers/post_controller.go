@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"forum/database"
 	"forum/middleware"
 	"forum/models"
 	"forum/utils"
@@ -436,9 +437,14 @@ func getPostResponse(post *models.Post, currentUserID int) (*PostResponse, error
 		}
 	}
 
-	// Get category name (you might need to implement this)
-	categoryName := "General" // Default or fetch from categories table
-
+	// Get category name
+	var categoryName string
+	query := `SELECT name FROM categories WHERE id = ?`
+	err = database.GetDB().QueryRow(query, post.CategoryID).Scan(&categoryName)
+	if err != nil {
+		categoryName = "Unknown" // fallback
+	}
+	
 	return &PostResponse{
 		ID:         post.ID,
 		Title:      post.Title,

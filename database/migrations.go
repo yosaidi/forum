@@ -44,7 +44,7 @@ func createUsersTable() {
 // createCategoriesTable creates the categories table for forum sections
 func createCategoriesTable() {
 	query := `
-	CREATE TABLE IF NOt EXISTS categories (
+	CREATE TABLE IF NOT EXISTS categories (
 	  id INTEGER PRIMARY KEY AUTOINCREMENT,
 	  name VARCHAR(50) UNIQUE NOT NULL,
 	  description TEXT,

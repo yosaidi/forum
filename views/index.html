@@ -91,7 +91,7 @@
                             <button type="submit" class="btn btn-primary" style="width: 100%;">Login</button>
                         </div>
                         <p style="text-align: center;">
-                            Don't have an account? <a href="#" onclick="app.showRegister()">Register</a>
+                            Don't have an account? <a href="#" onclick="event.preventDefault();app.showRegister()">Register</a>
                         </p>
                     </form>
                 </div>
@@ -121,7 +121,7 @@
                             <button type="submit" class="btn btn-primary" style="width: 100%;">Register</button>
                         </div>
                         <p style="text-align: center;">
-                            Already have an account? <a href="#" onclick="app.showLogin()">Login</a>
+                            Already have an account? <a href="#" onclick="event.preventDefault();app.showLogin()">Login</a>
                         </p>
                     </form>
                 </div>

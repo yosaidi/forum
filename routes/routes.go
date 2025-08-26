@@ -95,10 +95,11 @@ func apiHandler() http.HandlerFunc {
 		case matchPath(path, "/users/", true, "/stats") && r.Method == http.MethodGet:
 			controllers.GetUserStatsController(w, r)
 
-		// Categories (if you implement this later)
-		// case path == "/categories" && r.Method == http.MethodGet:
-		//     controllers.GetCategoriesController(w, r)
-
+		// Category routes
+		case path == "/categories" && r.Method == http.MethodGet:
+			controllers.GetCategoriesController(w, r)
+		case matchPath(path, "/categories/", true) && r.Method == http.MethodGet:
+			controllers.GetCategoryController(w, r)
 		default:
 			http.NotFound(w, r)
 		}
