@@ -487,36 +487,8 @@
                 }
             },
 
-            // Also update loadCategoriesForForm to use the API:
 
-            async loadCategoriesForForm() {
-                try {
-                    const response = await apiRequest('/categories');
-                    const select = document.getElementById('post-category');
-                    select.innerHTML = '<option value="">Select a category</option>';
-                    
-                    if (response.success) {
-                        response.data.forEach(category => {
-                            const option = document.createElement('option');
-                            option.value = category.id;
-                            option.textContent = category.name;
-                            select.appendChild(option);
-                        });
-                    }
-                } catch (error) {
-                    console.error('Failed to load categories for form:', error);
-                    // Fallback to some default categories
-                    const select = document.getElementById('post-category');
-                    select.innerHTML = `
-                        <option value="">Select a category</option>
-                        <option value="1">general</option>
-                        <option value="2">tech</option>
-                        <option value="3">programming</option>
-                        <option value="4">web-dev</option>
-                        <option value="5">mobile</option>
-                    `;
-                }
-            },
+
             renderCategories() {
                 const container = document.getElementById('categories');
                 
@@ -542,21 +514,16 @@
                     const select = document.getElementById('post-category');
                     select.innerHTML = '<option value="">Select a category</option>';
                     
-                    // Add some default categories for now
-                    const defaultCategories = [
-                        { id: 1, name: 'General' },
-                        { id: 2, name: 'Technology' },
-                        { id: 3, name: 'Sports' },
-                        { id: 4, name: 'Entertainment' },
-                        { id: 5, name: 'Science' }
-                    ];
-                    
-                    defaultCategories.forEach(category => {
-                        const option = document.createElement('option');
-                        option.value = category.id;
-                        option.textContent = category.name;
-                        select.appendChild(option);
-                    });
+                    // Fetch categories from backend
+                    const response = await apiRequest('/categories');
+                    if (response.success) {
+                        response.data.forEach(category => {
+                            const option = document.createElement('option');
+                            option.value = category.id;
+                            option.textContent = category.name;
+                            select.appendChild(option);
+                        });
+                    }   
                 } catch (error) {
                     console.error('Failed to load categories for form:', error);
                 }
