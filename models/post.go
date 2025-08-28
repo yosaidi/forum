@@ -32,12 +32,12 @@ type PostFilters struct {
 	Offset     int
 }
 
-type Category struct {
-	ID          int    `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	PostCount   int    `json:"post_count"`
-}
+// type Category struct {
+// 	ID          int    `json:"id"`
+// 	Name        string `json:"name"`
+// 	Description string `json:"description"`
+// 	PostCount   int    `json:"post_count"`
+// }
 
 func (p *Post) Create() error {
 	query := `
@@ -199,33 +199,16 @@ func (p *Post) GetCommentCount() (int, error) {
 	return count, nil
 }
 
-func GetAllCategories() ([]Category, error) {
-	var categories []Category
 
-	query := `
-	    SELECT c.id, c.name, c.description, COUNT(p.id) as post_count
-        FROM categories c
-        LEFT JOIN posts p ON c.id = p.category_id
-        GROUP BY c.id, c.name, c.description
-        ORDER BY c.name
-		`
-
-	rows, err := database.GetDB().Query(query)
-	if err != nil {
-		return categories, nil
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var category Category
-		err := rows.Scan(&category.ID, &category.Name, &category.Description, &category.PostCount)
-		if err != nil {
-			continue
-		}
-		categories = append(categories, category)
-	}
-	return categories, nil
-}
+// 		var category Category
+// 		err := rows.Scan(&category.ID, &category.Name, &category.Description, &category.PostCount)
+// 		if err != nil {
+// 			continue
+// 		}
+// 		categories = append(categories, category)
+// 	}
+// 	return categories, nil
+// }
 
 func (p *Post) Update() error {
 	query := `

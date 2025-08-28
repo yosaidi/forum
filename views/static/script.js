@@ -333,7 +333,6 @@
 
             // Voting
             async votePost(postId, voteType) {
-
                 if (!state.user) {
                     this.showMessage('Please login to vote', 'error');
                     this.showLogin();
@@ -372,9 +371,11 @@
             async voteComment(commentId, voteType) {
                 if (!state.user) {
                     this.showMessage('Please login to vote', 'error');
+                    this.showLogin();
                     return;
                 }
 
+                
                 try {
                     const response = await apiRequest(`/comments/${commentId}/vote`, {
                         method: 'POST',
@@ -382,8 +383,15 @@
                     });
 
                     if (response.success) {
+                        const comment = state.comments.find(c => c.id === commentId)
+                        if (comment){
+                            comment.likes = response.data.like_count;
+                            comment.dislikes = response.data.dislike_count;
+                            comment.user_vote = response.data.action === 'removed' ? null : voteType;                            
+                        }
+
                         // Reload comments to update vote counts
-                        this.loadComments(state.currentPost.id);
+                        this.renderComments();
                     }
                 } catch (error) {
                     this.showMessage(error.message, 'error');
@@ -470,7 +478,7 @@
             },
 
             // Categories
-
+            
             async loadCategories() {
                 try {
                     const response = await apiRequest('/categories');
@@ -529,6 +537,8 @@
                 }
             },
 
+            
+
             // Filtering and Sorting
             filterByCategory(categoryId) {
                 state.currentCategory = categoryId;
@@ -553,6 +563,8 @@
                 state.currentPage = 1;
                 this.loadPosts(1);
             },
+
+            
 
             // Pagination
             renderPagination(pagination) {

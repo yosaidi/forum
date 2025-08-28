@@ -1,6 +1,9 @@
 package database
 
-import "log"
+import (
+	"log"
+	"strings"
+)
 
 // RunMigrations creates all database tables and inserts default data
 func RunMigrations() {
@@ -13,6 +16,8 @@ func RunMigrations() {
 	createCommentsTable()
 	createVotesTable()
 	createSessionsTable()
+
+	AddUpdatedAtToCategories()
 
 	log.Println("Database migrations completed successfully")
 }
@@ -48,7 +53,8 @@ func createCategoriesTable() {
 	  id INTEGER PRIMARY KEY AUTOINCREMENT,
 	  name VARCHAR(50) UNIQUE NOT NULL,
 	  description TEXT,
-	  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);`
 
 	if _, err := DB.Exec(query); err != nil {
@@ -216,5 +222,28 @@ func CleanExpiredSessions() {
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected > 0 {
 		log.Printf("Cleaned %d expired sessions", rowsAffected)
+	}
+}
+
+// AddUpdatedAtToCategories adds updated_at column to existing categories table
+func AddUpdatedAtToCategories() {
+	// Check if updated_at column exists
+	query := `SELECT sql FROM sqlite_master WHERE type='table' AND name='categories'`
+	var tableSchema string
+	err := DB.QueryRow(query).Scan(&tableSchema)
+	if err != nil {
+		log.Printf("Could not check categories table schema: %v", err)
+		return
+	}
+
+	// If updated_at doesn't exist, add it
+	if !strings.Contains(tableSchema, "updated_at") {
+		alterQuery := `ALTER TABLE categories ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`
+		_, err := DB.Exec(alterQuery)
+		if err != nil {
+			log.Printf("Warning: Failed to add updated_at to categories: %v", err)
+		} else {
+			log.Println("✓ Added updated_at column to categories table")
+		}
 	}
 }
