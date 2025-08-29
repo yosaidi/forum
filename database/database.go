@@ -52,12 +52,10 @@ func GetDB() *sql.DB {
 	return DB
 }
 
-
 // HealthCheck verifies the database is still responsive
-func HealthCheck()error{
+func HealthCheck() error {
 	if DB == nil {
 		return sql.ErrConnDone
 	}
 	return DB.Ping()
 }
-

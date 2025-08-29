@@ -30,6 +30,9 @@ type CommentResponse struct {
 	Content   string       `json:"content"`
 	PostID    int          `json:"post_id"`
 	Author    UserResponse `json:"author"`
+	Likes     int          `json:"likes"`
+	Dislikes  int          `json:"dislikes"`
+	UserVote  *string      `json:"user_vote"`
 	CreatedAt time.Time    `json:"created_at"`
 	UpdatedAt time.Time    `json:"updated_at"`
 }
@@ -417,12 +420,12 @@ func VoteCommentController(w http.ResponseWriter, r *http.Request) {
 // getCommentIDFromPath extracts comment ID from URL path like /comments/123
 func getCommentIDFromPath(path string) (int, error) {
 	// Handle paths like /comments/123 or /comments/123/vote
-    path = strings.TrimPrefix(path, "/api/comments/")
-    parts := strings.Split(path, "/")
-    if len(parts) == 0 {
-        return 0, errors.New("invalid path format")
-    }
-    return strconv.Atoi(parts[0])
+	path = strings.TrimPrefix(path, "/api/comments/")
+	parts := strings.Split(path, "/")
+	if len(parts) == 0 {
+		return 0, errors.New("invalid path format")
+	}
+	return strconv.Atoi(parts[0])
 }
 
 // getPostIDFromCommentsPath extracts post ID from comments URL like /posts/123/comments
@@ -457,6 +460,9 @@ func getCommentResponse(comment *models.Comment) (*CommentResponse, error) {
 			Email:    author.Email,
 			JoinedAt: author.CreatedAt,
 		},
+		Likes:     comment.Likes,
+		Dislikes:  comment.Dislikes,
+		UserVote:  comment.UserVote,
 		CreatedAt: comment.CreatedAt,
 		UpdatedAt: comment.UpdatedAt,
 	}, nil
