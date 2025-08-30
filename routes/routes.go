@@ -161,8 +161,10 @@ func extractIDFromPath(path, prefix string) (int, error) {
 }
 
 // GetRoutesList returns a list of all available routes for debugging
+// GetRoutesList returns a list of all available routes for debugging
 func GetRoutesList() []string {
 	return []string{
+		// Auth routes
 		"POST   /api/auth/register",
 		"POST   /api/auth/login",
 		"POST   /api/auth/logout",
@@ -171,6 +173,8 @@ func GetRoutesList() []string {
 		"GET    /api/auth/check-username",
 		"GET    /api/auth/check-email",
 		"",
+
+		// Post routes
 		"GET    /api/posts",
 		"POST   /api/posts",
 		"GET    /api/posts/{id}",
@@ -180,17 +184,28 @@ func GetRoutesList() []string {
 		"",
 		"GET    /api/posts/{id}/comments",
 		"POST   /api/posts/{id}/comments",
+		"",
+
+		// Comment routes
 		"POST   /api/comments",
 		"GET    /api/comments/{id}",
 		"PUT    /api/comments/{id}",
 		"DELETE /api/comments/{id}",
 		"POST   /api/comments/{id}/vote",
 		"",
+
+		// User routes
 		"GET    /api/users/{id}",
 		"PUT    /api/users/{id}",
 		"GET    /api/users/{id}/posts",
 		"GET    /api/users/{id}/comments",
 		"GET    /api/users/{id}/stats",
+		"",
+
+		// Category routes
+		"GET    /api/categories",
+		"GET    /api/categories/{id}",
+		"\n",
 	}
 }
 

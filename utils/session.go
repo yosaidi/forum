@@ -27,6 +27,11 @@ const CookieName = "forum_session"
 
 // CreateSession creates a new session for a user
 func CreateSession(userID int) (*Session, error) {
+	// Delete any existing session for the user (single-session login)
+	if err := DeleteUserSessions(userID); err != nil {
+		return nil, err
+	}
+
 	session := &Session{
 		ID:        uuid.New().String(),
 		UserID:    userID,

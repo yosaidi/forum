@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"log"
 	"strings"
 )
@@ -20,6 +21,7 @@ func RunMigrations() {
 	AddUpdatedAtToCategories()
 
 	log.Println("Database migrations completed successfully")
+	fmt.Println()
 }
 
 // createUsersTable creates the users table for authentication
