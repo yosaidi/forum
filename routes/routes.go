@@ -19,6 +19,9 @@ func SetupRoutes() *http.ServeMux {
 	// Static files (if needed)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./views/static/"))))
 
+	// Uploaded files (avatars, etc.)
+	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads/"))))
+
 	// Serve SPA (index.html) for the root
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./views/index.html")
@@ -88,6 +91,10 @@ func apiHandler() http.HandlerFunc {
 			controllers.GetUserProfileController(w, r)
 		case matchPath(path, "/users/", true) && r.Method == http.MethodPut:
 			middleware.RequireAuth(controllers.UpdateUserProfileController)(w, r)
+		case matchPath(path, "/users/", true, "/avatar") && r.Method == http.MethodPost:
+			middleware.RequireAuth(controllers.UploadAvatarController)(w, r)
+		case matchPath(path, "/users/", true, "/avatar") && r.Method == http.MethodDelete:
+			middleware.RequireAuth(controllers.DeleteAvatarController)(w, r)
 		case matchPath(path, "/users/", true, "/posts") && r.Method == http.MethodGet:
 			controllers.GetUserPostsController(w, r)
 		case matchPath(path, "/users/", true, "/comments") && r.Method == http.MethodGet:
@@ -161,7 +168,6 @@ func extractIDFromPath(path, prefix string) (int, error) {
 }
 
 // GetRoutesList returns a list of all available routes for debugging
-// GetRoutesList returns a list of all available routes for debugging
 func GetRoutesList() []string {
 	return []string{
 		// Auth routes
@@ -197,6 +203,8 @@ func GetRoutesList() []string {
 		// User routes
 		"GET    /api/users/{id}",
 		"PUT    /api/users/{id}",
+		"POST   /api/users/{id}/avatar",
+		"DELETE /api/users/{id}/avatar",
 		"GET    /api/users/{id}/posts",
 		"GET    /api/users/{id}/comments",
 		"GET    /api/users/{id}/stats",
@@ -205,7 +213,11 @@ func GetRoutesList() []string {
 		// Category routes
 		"GET    /api/categories",
 		"GET    /api/categories/{id}",
-		"\n",
+		"",
+
+		// Static & Uploads (optional)
+		"GET    /static/*",
+		"GET    /uploads/*",
 	}
 }
 

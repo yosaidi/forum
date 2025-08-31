@@ -141,12 +141,45 @@ func (u *User) UpdatePassword(newPassword string) error {
 	return nil
 }
 
+// UpdateUsername updates the user's username
+func (u *User) UpdateUsername(newUsername string) error {
+	if strings.TrimSpace(newUsername) == "" {
+		return errors.New("username cannot be empty")
+	}
+
+	query := `UPDATE users SET username = ?, updated_at = ? WHERE id = ?`
+	now := time.Now()
+	_, err := database.GetDB().Exec(query, newUsername, now, u.ID)
+	if err != nil {
+		return err
+	}
+
+	u.Username = newUsername
+	u.UpdatedAt = now
+	return nil
+}
+
+// UpdateEmail updates the user's email
+func (u *User) UpdateEmail(newEmail string) error {
+	if strings.TrimSpace(newEmail) == "" {
+		return errors.New("email cannot be empty")
+	}
+
+	query := `UPDATE users SET email = ?, updated_at = ? WHERE id = ?`
+	now := time.Now()
+	_, err := database.GetDB().Exec(query, newEmail, now, u.ID)
+	if err != nil {
+		return err
+	}
+
+	u.Email = newEmail
+	u.UpdatedAt = now
+	return nil
+}
+
 // GetAvatarURL returns the user's avatar URL or default if empty
 func (u *User) GetAvatarURL() string {
-	if strings.TrimSpace(u.Avatar) == "" {
-		return "/static/avatars/default.png"
-	}
-	return u.Avatar
+	return strings.TrimSpace(u.Avatar) // empty string if no avatar
 }
 
 // UpdateAvatar updates the user's avatar
@@ -175,4 +208,77 @@ func (u *User) UpdateLastLogin() error {
 	}
 	u.UpdatedAt = now
 	return nil
+}
+
+// UpdateProfile updates multiple user fields at once
+func (u *User) UpdateProfile(updates map[string]interface{}) error {
+	if len(updates) == 0 {
+		return errors.New("no fields to update")
+	}
+
+	var setParts []string
+	var args []interface{}
+
+	// Build dynamic query based on provided fields
+	for field, value := range updates {
+		switch field {
+		case "username":
+			if username, ok := value.(string); ok && strings.TrimSpace(username) != "" {
+				setParts = append(setParts, "username = ?")
+				args = append(args, username)
+				u.Username = username
+			}
+		case "email":
+			if email, ok := value.(string); ok && strings.TrimSpace(email) != "" {
+				setParts = append(setParts, "email = ?")
+				args = append(args, email)
+				u.Email = email
+			}
+		case "avatar":
+			if avatar, ok := value.(string); ok {
+				setParts = append(setParts, "avatar = ?")
+				args = append(args, avatar)
+				u.Avatar = avatar
+			}
+		}
+	}
+
+	if len(setParts) == 0 {
+		return errors.New("no valid fields to update")
+	}
+
+	// Add updated_at
+	setParts = append(setParts, "updated_at = ?")
+	now := time.Now()
+	args = append(args, now)
+
+	// Add WHERE clause
+	args = append(args, u.ID)
+
+	query := `UPDATE users SET ` + strings.Join(setParts, ", ") + ` WHERE id = ?`
+	_, err := database.GetDB().Exec(query, args...)
+	if err != nil {
+		return err
+	}
+
+	u.UpdatedAt = now
+	return nil
+}
+
+// GetPublicProfile returns user data safe for public viewing
+func (u *User) GetPublicProfile() map[string]interface{} {
+	return map[string]interface{}{
+		"id":         u.ID,
+		"username":   u.Username,
+		"avatar":     u.GetAvatarURL(),
+		"created_at": u.CreatedAt,
+		"updated_at": u.UpdatedAt,
+	}
+}
+
+// GetPrivateProfile returns user data including sensitive info (for profile owner)
+func (u *User) GetPrivateProfile() map[string]interface{} {
+	profile := u.GetPublicProfile()
+	profile["email"] = u.Email
+	return profile
 }

@@ -20,8 +20,8 @@
                 <div id="user-nav" class="user-nav" style="display: none;">
                     <button onclick="app.showCreatePost()">New Post</button>
                     <div class="user-info">
-                        <div class="user-avatar" id="user-avatar"></div>
-                        <span id="username"></span>
+                        <div class="user-avatar avatar-placeholder" id="user-avatar" onclick="profile.showProfile(state.user.id)"></div>
+                        <span id="username" onclick="profile.showProfile(state.user.id)"></span>
                         <button onclick="app.logout()">Logout</button>
                     </div>
                 </div>
@@ -74,6 +74,12 @@
                 </div>
             </section>
 
+            <!-- Profile Section -->
+            <section id="profile-section" class="section">
+                <button onclick="app.showHome()" class="btn btn-secondary btn-small" style="margin-bottom: 1rem;">← Back to Posts</button>
+                <div id="profile-content"></div>
+            </section>
+            
             <!-- Login Form -->
             <section id="login-section" class="section">
                 <div class="form">
