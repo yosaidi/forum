@@ -28,7 +28,13 @@ function updateNavigation() {
     guestNav.style.display = "none";
     userNav.style.display = "flex";
     username.textContent = state.user.username;
-    avatar.textContent = state.user.username.charAt(0).toUpperCase();
+    if (state.user.avatar) {
+      avatar.style.backgroundImage = `url("${state.user.avatar}")`;
+      avatar.style.backgroundSize = "cover";
+      avatar.style.backgroundPosition = "center center";
+    } else {
+      avatar.textContent = state.user.username.charAt(0).toUpperCase();
+    }
   } else {
     guestNav.style.display = "flex";
     userNav.style.display = "none";

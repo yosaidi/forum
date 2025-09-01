@@ -182,7 +182,7 @@ export function showMessage(message, type = 'info') {
     messageDiv.textContent = message;
     messageDiv.style.cssText = `
         position: fixed;
-        top: 20px;
+        top: 100px;
         right: 20px;
         padding: 1rem 2rem;
         border-radius: 4px;
@@ -198,4 +198,62 @@ export function showMessage(message, type = 'info') {
             messageDiv.parentNode.removeChild(messageDiv);
         }
     }, 5000);
+}
+
+export function updateAvatarDisplay(avatarUrl) {
+  const avatarImg = document.getElementById("profile-avatar-img");
+  if (!avatarImg) return;
+
+  if (avatarUrl) {
+    if (avatarImg.tagName === 'DIV') {
+      // Replace placeholder with image
+      const newImg = document.createElement('img');
+      newImg.src = avatarUrl + "?t=" + Date.now();
+      newImg.alt = state.currentProfile.username;
+      newImg.className = 'profile-avatar';
+      newImg.id = 'profile-avatar-img';
+      avatarImg.parentNode.replaceChild(newImg, avatarImg);
+    } else {
+      // Update existing image
+      avatarImg.src = avatarUrl + "?t=" + Date.now();
+    }
+  } else {
+    // Replace with placeholder
+    const newDiv = document.createElement('div');
+    newDiv.className = 'profile-avatar avatar-placeholder';
+    newDiv.id = 'profile-avatar-img';
+    newDiv.textContent = state.currentProfile.username.charAt(0).toUpperCase();
+    avatarImg.parentNode.replaceChild(newDiv, avatarImg);
+  }
+}
+
+// Helper function to update avatar buttons
+export function updateAvatarButtons(hasAvatar) {
+  const avatarActions = document.querySelector('.avatar-actions');
+  if (!avatarActions) return;
+
+  // Update upload button text
+  const uploadLabel = avatarActions.querySelector('label[for="avatar-upload"]');
+  if (uploadLabel) {
+    uploadLabel.textContent = hasAvatar ? 'Change Avatar' : 'Upload Avatar';
+  }
+
+  // Handle remove button
+  let removeBtn = avatarActions.querySelector('.btn-secondary');
+  
+  if (hasAvatar) {
+    // Show remove button
+    if (!removeBtn) {
+      removeBtn = document.createElement('button');
+      removeBtn.onclick = () => profile.deleteAvatar();
+      removeBtn.className = 'btn btn-small btn-secondary';
+      removeBtn.textContent = 'Remove';
+      avatarActions.appendChild(removeBtn);
+    }
+  } else {
+    // Hide remove button
+    if (removeBtn) {
+      removeBtn.remove();
+    }
+  }
 }

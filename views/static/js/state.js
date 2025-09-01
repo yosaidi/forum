@@ -3,6 +3,7 @@ export const state = {
   user: null,
   posts: [],
   currentPost: null,
+  currentProfile: null,
   categories: [],
   comments: [],
   currentPage: 1,
@@ -21,6 +22,10 @@ export function updatePosts(posts) {
 
 export function updateCurrentPost(post) {
   state.currentPost = post;
+}
+
+export function updateCurrentProfile(profile) {
+  state.currentProfile = profile;
 }
 
 export function updateComments(comments) {

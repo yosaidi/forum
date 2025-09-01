@@ -624,7 +624,7 @@
         /* Message area styling */
         #message-area {
             position: fixed;
-            top: 20px;
+            top: 80px;
             right: 20px;
             z-index: 3000;
         }
@@ -848,12 +848,13 @@
         }
 
         .username {
+            color: white;
             cursor: pointer;
             transition: color 0.3s ease;
         }
 
         .username:hover {
-            color: rgba(255,255,255,0.8);
+            color:#dc2626;
         }
 
         /* Loading States */

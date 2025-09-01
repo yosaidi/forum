@@ -1,13 +1,13 @@
 import { apiRequest } from "./api.js";
-import { state, updateUser } from "./state.js";
-import { showMessage } from "./ui.js";
+import { state, updateUser, updateCurrentProfile } from "./state.js";
+import { showMessage, updateAvatarDisplay, updateAvatarButtons } from "./ui.js";
 
 // Profile Management Functions
 export async function loadUserProfile(userId) {
   try {
     const response = await apiRequest(`/users/${userId}`);
     if (response.success) {
-      state.currentProfile = response.data;
+      updateCurrentProfile(response.data);
       return { success: true, data: response.data };
     }
   } catch (error) {
@@ -28,6 +28,9 @@ export async function updateProfile(userId, updates) {
         updateUser(response.data);
         updateNavigation();
       }
+
+      updateCurrentProfile(response.data);
+
       return { success: true, data: response.data };
     }
   } catch (error) {
@@ -91,7 +94,7 @@ export async function deleteAvatar(userId) {
     if (response.success) {
       // Update current user avatar if it's their own profile
       if (state.user && state.user.id === userId) {
-        state.user.avatar = response.data.avatar_url;
+        state.user.avatar = null;
         updateNavigation();
       }
       return { success: true, data: response.data };
@@ -106,6 +109,7 @@ export function renderProfile() {
   const container = document.getElementById("profile-content");
   const profile = state.currentProfile;
   const isOwnProfile = state.user && state.user.id === profile.id;
+  const hasAvatar = profile && profile.avatar;
 
   const avatarContent = profile.avatar
     ? `<img src="${profile.avatar}" alt="${profile.username}" class="profile-avatar" id="profile-avatar-img">`
@@ -113,18 +117,26 @@ export function renderProfile() {
         ${profile.username.charAt(0)}
     </div>`;
 
-  container.innerHTML = `
+  const uploadButtonText = hasAvatar ? "Change Avatar" : "Upload Avatar";
+  const removeBtn = profile.avatar
+    ? `   <button onclick="profile.deleteAvatar()" class="btn btn-small btn-secondary">Remove</button>`
+    : `<span></span>`;
+
+  container.innerHTML = /*html*/ `
+    
     <div class="profile-header">
-      <div class="profile-avatar-section">
+      <div class="profile-avatar-section" id="profile-avatar-section">
         ${avatarContent}
         ${
           isOwnProfile
             ? `
           <div class="avatar-actions">
-            <label for="avatar-upload" class="btn btn-small btn-primary">Change Avatar</label>
+            <label for="avatar-upload" class="btn btn-small btn-primary">
+            ${uploadButtonText}
+            </label>
             <input type="file" id="avatar-upload" accept="image/*" style="display: none;">
-            <button onclick="profile.deleteAvatar()" class="btn btn-small btn-secondary">Remove</button>
-          </div>
+            ${removeBtn}
+            </div>
         `
             : ""
         }
@@ -225,26 +237,27 @@ function setupAvatarUpload() {
 }
 
 async function handleAvatarUpload(file) {
-  const loadingMessage = showMessage("Uploading avatar...", "info");
+  showMessage("Uploading avatar...", "info");
 
   try {
     const result = await uploadAvatar(state.user.id, file);
 
     if (result.success) {
       // Cache-buster to force browser to load new image
-      const newAvatarUrl = result.data.avatar_url + "?t=" + Date.now();
-
-      // Update avatar image
-      const avatarImg = document.getElementById("profile-avatar-img");
-      if (avatarImg) {
-        avatarImg.src = newAvatarUrl;
-      }
+      const AvatarUrl = result.data.avatar_url;
 
       // Update header avatar
       if (state.user) {
-        state.user.avatar = newAvatarUrl;
+        state.user.avatar = AvatarUrl;
         updateNavigation();
       }
+
+      if (state.currentProfile) {
+        state.currentProfile.avatar = AvatarUrl;
+      }
+
+      updateAvatarDisplay(AvatarUrl);
+      updateAvatarButtons(true);
 
       showMessage("Avatar updated successfully!", "success");
     } else {
@@ -252,10 +265,11 @@ async function handleAvatarUpload(file) {
     }
   } catch (error) {
     showMessage("Failed to upload avatar: " + error.message, "error");
+  } finally {
+    document.getElementById("avatar-upload").value = "";
   }
 
   // Clear file input
-  document.getElementById("avatar-upload").value = "";
 }
 
 async function loadUserPosts(userId, page = 1) {
@@ -290,7 +304,6 @@ async function loadUserComments(userId, page = 1) {
 
 function renderUserPosts(data) {
   const container = document.getElementById("profile-posts");
-  console.log(data.posts);
 
   if (!data.posts || data.posts.length === 0) {
     container.innerHTML = "<p>No posts yet.</p>";
@@ -416,7 +429,7 @@ function updateNavigation() {
   if (!avatar || !state.user) return;
 
   if (avatar && state.user) {
-    if (state.user.avatar && !state.user.avatar.includes("default.png")) {
+    if (state.user.avatar) {
       avatar.style.backgroundImage = `url(${state.user.avatar})`;
       avatar.style.backgroundSize = "cover";
       avatar.style.backgroundPosition = "center";
@@ -495,7 +508,6 @@ export const profile = {
     const result = await updateProfile(state.user.id, updates);
 
     if (result.success) {
-      state.currentProfile = result.data;
       renderProfile();
       showMessage("Profile updated successfully!", "success");
     } else {
@@ -511,10 +523,18 @@ export const profile = {
     const result = await deleteAvatar(state.user.id);
 
     if (result.success) {
-      const avatarImg = document.getElementById("profile-avatar-img");
-      if (avatarImg) {
-        avatarImg.src = result.data.avatar_url;
+      if (state.user) {
+        state.user.avatar = null;
+        updateNavigation();
       }
+
+      if (state.currentProfile) {
+        state.currentProfile.avatar = null;
+      }
+
+      updateAvatarDisplay(null);
+      updateAvatarButtons(false);
+
       showMessage("Avatar removed successfully!", "success");
     } else {
       showMessage(result.error, "error");
