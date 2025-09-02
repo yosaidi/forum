@@ -112,7 +112,18 @@ export function renderProfile() {
   const hasAvatar = profile && profile.avatar;
 
   const avatarContent = profile.avatar
-    ? `<img src="${profile.avatar}" alt="${profile.username}" class="profile-avatar" id="profile-avatar-img">`
+    ? `<img src="${profile.avatar}"
+     alt="${profile.username}" 
+     class="profile-avatar"
+      id="profile-avatar-img"
+      onerror="
+      this.onerror=null;
+       const placeholder=document.createElement('div');
+             placeholder.className='profile-avatar avatar-placeholder';
+             placeholder.textContent='${profile.username.charAt(0)}';
+             this.replaceWith(placeholder);
+      "
+      >`
     : `<div class="profile-avatar avatar-placeholder" id="profile-avatar-img">
         ${profile.username.charAt(0)}
     </div>`;

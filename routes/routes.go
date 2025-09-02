@@ -218,6 +218,7 @@ func GetRoutesList() []string {
 		// Static & Uploads (optional)
 		"GET    /static/*",
 		"GET    /uploads/*",
+		"",
 	}
 }
 

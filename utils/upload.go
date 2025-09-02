@@ -55,6 +55,10 @@ func InitUploadDirectories() error {
 
 // HandleFileUpload processes multipart file upload
 func HandleFileUpload(r *http.Request, fieldName string, config UploadConfig) (*UploadResult, error) {
+	if err := os.MkdirAll(config.UploadDir, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create upload directory: %v", err)
+	}
+
 	// Parse multipart form with size limit
 	err := r.ParseMultipartForm(config.MaxFileSize)
 	if err != nil {
@@ -85,10 +89,10 @@ func HandleFileUpload(r *http.Request, fieldName string, config UploadConfig) (*
 	}
 
 	// Create full file path
-	filepath := filepath.Join(config.UploadDir, filename)
-
+	fullPath := filepath.Join(config.UploadDir, filename)
+	
 	// Save file to disk
-	if err := saveFile(file, filepath); err != nil {
+	if err := saveFile(file, fullPath); err != nil {
 		return nil, fmt.Errorf("failed to save file: %v", err)
 	}
 
@@ -246,10 +250,10 @@ func ExtractFilenameFromURL(url string) string {
 	if url == "" {
 		return ""
 	}
-	
+
 	// Remove URL prefix to get filename
 	filename := strings.TrimPrefix(url, AvatarUploadConfig.URLPrefix+"/")
 	filename = strings.TrimPrefix(filename, "/")
-	
+
 	return filename
 }
