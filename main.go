@@ -17,7 +17,7 @@ func main() {
 	// Initialize database (not used yet)
 	database.Init()
 	defer database.Close()
-
+	
 	// setup routes (later)
 	mux := routes.SetupRoutes()
 

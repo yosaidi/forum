@@ -1,7 +1,6 @@
 package models
 
 import (
-	"errors"
 	"strings"
 	"time"
 
@@ -199,7 +198,6 @@ func (p *Post) GetCommentCount() (int, error) {
 	return count, nil
 }
 
-
 // 		var category Category
 // 		err := rows.Scan(&category.ID, &category.Name, &category.Description, &category.PostCount)
 // 		if err != nil {
@@ -228,66 +226,24 @@ func (p *Post) Update() error {
 }
 
 func (p *Post) Delete() error {
-	query := `DELETE FROM posts WHERE id = ?`
-	res, err := database.GetDB().Exec(query, p.ID)
+	// Start transaction for consistent deletion
+	tx, err := database.GetDB().Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Delete all votes for this post first
+	_, err = tx.Exec("DELETE FROM votes WHERE post_id = ?", p.ID)
 	if err != nil {
 		return err
 	}
 
-	rows, err := res.RowsAffected()
+	// Delete the post
+	_, err = tx.Exec("DELETE FROM posts WHERE id = ?", p.ID)
 	if err != nil {
 		return err
 	}
-	if rows == 0 {
-		return errors.New("no post deleted")
-	}
 
-	return nil
+	return tx.Commit()
 }
-
-// func GetAllPosts(userID *int, categoryFilter string, limit, offset int) ([]Post, error) {
-// 	var posts []Post
-// 	var query string
-// 	var args []interface{}
-
-// 	baseQuery := `
-// 		SELECT p.id, p.title, p.content, p.user_id, u.username, p.category_id, c.name,
-// 			   p.likes, p.dislikes, p.created_at, p.updated_at,
-// 			   (SELECT COUNT(*) FROM comments WHERE post_id = p.id) as comment_count
-// 		FROM posts p
-// 		JOIN users u ON p.user_id = u.id
-// 		JOIN categories c ON p.category_id = c.id
-// 	`
-
-// 	if categoryFilter != "" && categoryFilter != "all" {
-// 		query = baseQuery + " WHERE c.name = ? ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
-// 		args = []interface{}{categoryFilter, limit, offset}
-// 	} else {
-// 		query = baseQuery + " ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
-// 		args = []interface{}{limit, offset}
-// 	}
-
-// 	rows, err := database.GetDB().Query(query, args...)
-// 	if err != nil {
-// 		return posts, err
-// 	}
-// 	defer rows.Close()
-
-// 	for rows.Next() {
-// 		var post Post
-// 		err := rows.Scan(&post.ID, &post.Title, &post.Content, &post.UserID, &post.Username,
-// 			&post.CategoryID, &post.CategoryName, &post.Likes, &post.Dislikes,
-// 			&post.CreatedAt, &post.UpdatedAt, &post.CommentCount)
-// 		if err != nil {
-// 			continue
-// 		}
-
-// 		if userID != nil {
-// 			post.GetUserVote(*userID)
-// 		}
-
-// 		posts = append(posts, post)
-// 	}
-
-// 	return posts, nil
-// }
