@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"log"
+	"time"
 
 	"forum/config"
 
@@ -19,7 +20,7 @@ func Init() {
 	// Open connection to SQLite database
 	DB, err = sql.Open("sqlite3", config.GetDatabaseURL())
 	if err != nil {
-		log.Fatal("Failed to connect to databse:", err)
+		log.Fatal("Failed to connect to database:", err)
 	}
 
 	// Test the database connection with Ping()
@@ -30,7 +31,7 @@ func Init() {
 	// Configure connection pool settings for better performance
 	DB.SetMaxOpenConns(25)
 	DB.SetMaxIdleConns(25)
-	DB.SetConnMaxLifetime(5 * 60)
+	DB.SetConnMaxLifetime(5 * time.Minute)
 
 	log.Println("Database connected successfully")
 

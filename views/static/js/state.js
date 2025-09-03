@@ -29,6 +29,8 @@ export function updateCurrentProfile(profile) {
 }
 
 export function updateComments(comments) {
+  console.log("Updating comments:", comments);
+  
   state.comments = comments;
 }
 

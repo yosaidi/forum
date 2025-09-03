@@ -213,19 +213,6 @@ func insertDefaultCategories() {
 	log.Println("✓ Default categories inserted")
 }
 
-// CleanExpiredSessions removes expired session records (call this periodically)
-func CleanExpiredSessions() {
-	query := `DELETE FROM sessions WHERE expires_at < CURRENT_TIMESTAMP`
-	result, err := DB.Exec(query)
-	if err != nil {
-		log.Printf("Warning: Failed to clean expired sessions: %v", err)
-		return
-	}
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected > 0 {
-		log.Printf("Cleaned %d expired sessions", rowsAffected)
-	}
-}
 
 // AddUpdatedAtToCategories adds updated_at column to existing categories table
 func AddUpdatedAtToCategories() {

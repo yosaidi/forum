@@ -1,6 +1,6 @@
 import { checkAuthStatus, login, register, logout } from "./auth.js";
-import { loadPosts, loadSinglePost, createPost } from "./posts.js";
-import { loadComments, submitComment } from "./comments.js";
+import { loadPosts, loadSinglePost, createPost, deletePost } from "./posts.js";
+import { loadComments, submitComment, deleteComment } from "./comments.js";
 import { loadCategories } from "./categories.js";
 import { handlePostVote, handleCommentVote } from "./voting.js";
 import {
@@ -139,6 +139,26 @@ export const app = {
     }
   },
 
+  async handleDeletePost(postId) {
+    if (!state.user) {
+      showMessage("Please login to delete a post", "error");
+      return;
+    }
+
+    if (!confirm("Are you sure you want to delete this post?")) {
+      return;
+    }
+
+    const result = await deletePost(postId);
+
+    if (result.success) {
+      showMessage("Post deleted successfully!", "success");
+      this.showHome();
+    } else {
+      showMessage(result.error, "error");
+    }
+  },
+
   // Voting handlers
   async votePost(postId, voteType) {
     await handlePostVote(postId, voteType);
@@ -154,6 +174,26 @@ export const app = {
 
     if (result.success) {
       renderComments();
+    } else {
+      showMessage(result.error, "error");
+    }
+  },
+
+  async handleDeleteComment(commentId) {
+    if (!state.user) {
+      showMessage("Please login to delete a comment", "error");
+      return;
+    }
+
+    if (!confirm("Are you sure you want to delete this comment?")) {
+      return;
+    }
+
+    const result = await deleteComment(commentId);
+
+    if (result.success) {
+      showMessage("Comment deleted successfully!", "success");
+      this.loadComments(state.currentPost.id);
     } else {
       showMessage(result.error, "error");
     }
