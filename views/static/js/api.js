@@ -18,7 +18,13 @@ export async function apiRequest(endpoint, options = {}) {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || data.message || "Request failed");
+      let errorMsg = data.message || "API request failed";
+
+      if (data.data && typeof data.data === "object") {
+        const errors = Object.values(data.data).join("\n");
+        errorMsg += ":\n" + errors;
+      }
+      throw new Error(errorMsg);
     }
 
     return data;

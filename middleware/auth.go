@@ -36,13 +36,12 @@ func RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 		// Check if session is still valid (extra safety check)
 		if session.ExpiresAt.Before(time.Now()) {
 			// Session expired, clear cookie
-			utils.ClearSessionCookie(w)
 			utils.Unauthorized(w, "Session expired. Please log in again.")
 			return
 		}
 
 		// Get user information
-		userID, username, err := utils.GetCurrentUser(r)
+		userID, _, err := utils.GetCurrentUser(r)
 		if err != nil {
 			utils.Unauthorized(w, "Invalid session. Please log in again.")
 			return
@@ -50,9 +49,8 @@ func RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 
 		// Add user info to context
 		ctx := context.WithValue(r.Context(), UserIDKey, userID)
-		ctx = context.WithValue(ctx, UsernameKey, username)
-		ctx = context.WithValue(ctx, SessionKey, session)
 
+		// to be deleted later:
 		// Optional: Refresh session if it's halfway to expiration
 		if time.Until(session.ExpiresAt) < utils.SessionDuration/2 {
 			refreshedSession, err := utils.RefreshSession(session.ID)
@@ -87,7 +85,7 @@ func OptionalAuth(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		// Get user information
-		userID, username, err := utils.GetCurrentUser(r)
+		userID, _, err := utils.GetCurrentUser(r)
 		if err != nil {
 			// Invalid session, continue without auth
 			next(w, r)
@@ -96,8 +94,8 @@ func OptionalAuth(next http.HandlerFunc) http.HandlerFunc {
 
 		// Add user info to context
 		ctx := context.WithValue(r.Context(), UserIDKey, userID)
-		ctx = context.WithValue(ctx, UsernameKey, username)
-		ctx = context.WithValue(ctx, SessionKey, session)
+		// ctx = context.WithValue(ctx, UsernameKey, username)
+		// ctx = context.WithValue(ctx, SessionKey, session)
 
 		// Continue with authenticated context
 		next(w, r.WithContext(ctx))
@@ -141,95 +139,6 @@ func GetUserIDFromContext(r *http.Request) (int, bool) {
 	return userID, ok
 }
 
-// GetUsernameFromContext retrieves username from request context
-func GetUsernameFromContext(r *http.Request) (string, bool) {
-	username, ok := r.Context().Value(UsernameKey).(string)
-	return username, ok
-}
-
-// GetSessionFromContext retrieves session from request context
-func GetSessionFromContext(r *http.Request) (*utils.Session, bool) {
-	session, ok := r.Context().Value(SessionKey).(*utils.Session)
-	return session, ok
-}
-
-// RequireValidMethod middleware ensures only specific HTTP methods are allowed
-func RequireValidMethod(allowedMethods ...string) func(http.HandlerFunc) http.HandlerFunc {
-	return func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			// Check if method is allowed
-			for _, method := range allowedMethods {
-				if r.Method == method {
-					next(w, r)
-					return
-				}
-			}
-
-			// Method not allowed
-			w.Header().Set("Allow", joinMethods(allowedMethods))
-			utils.Error(w, http.StatusMethodNotAllowed, "Method not allowed")
-		}
-	}
-}
-
-// RateLimit middleware (basic implementation)
-// In production, use Redis or more sophisticated rate limiting
-func RateLimit(maxRequests int, timeWindow time.Duration) func(http.HandlerFunc) http.HandlerFunc {
-	// Simple in-memory rate limiter (not suitable for production with multiple servers)
-	clients := make(map[string][]time.Time)
-
-	return func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			// Get client IP
-			clientIP := getClientIP(r)
-
-			// Clean old requests
-			now := time.Now()
-			if requests, exists := clients[clientIP]; exists {
-				var validRequests []time.Time
-				for _, reqTime := range requests {
-					if now.Sub(reqTime) < timeWindow {
-						validRequests = append(validRequests, reqTime)
-					}
-				}
-				clients[clientIP] = validRequests
-			}
-
-			// Check rate limit
-			if len(clients[clientIP]) >= maxRequests {
-				utils.Error(w, http.StatusTooManyRequests, "Rate limit exceeded. Please try again later.")
-				return
-			}
-
-			// Add current request
-			clients[clientIP] = append(clients[clientIP], now)
-
-			// Continue
-			next(w, r)
-		}
-	}
-}
-
-// ContentTypeJSON middleware ensures request has JSON content type
-func ContentTypeJSON(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Skip for GET requests
-		if r.Method == http.MethodGet {
-			next(w, r)
-			return
-		}
-
-		// Check content type
-		contentType := r.Header.Get("Content-Type")
-		if contentType != "application/json" {
-			utils.BadRequest(w, "Content-Type must be application/json")
-			return
-		}
-
-		next(w, r)
-	}
-}
-
 // LogRequests middleware logs HTTP requests (basic logging)
 func LogRequests(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -263,11 +172,6 @@ func LogRequests(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // Helper functions
-
-// joinMethods joins HTTP methods for Allow header
-func joinMethods(methods []string) string {
-	return strings.Join(methods, ", ")
-}
 
 // getClientIP gets client IP address from request
 func getClientIP(r *http.Request) string {

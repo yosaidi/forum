@@ -130,12 +130,12 @@ export function renderComments() {
     .map((comment) => {
       const isCommentAuthor =
         state.user && comment.author && state.user.id === comment.author.id;
-   
-        const deleteBtn = isCommentAuthor
+
+      const deleteBtn = isCommentAuthor
         ? `<button class="btn btn-secondary btn-small" 
                         onclick="app.handleDeleteComment(${comment.id})">Delete</button>`
         : "";
-        
+
       return `
         <div class="comment">
             <div class="comment-header">
@@ -244,6 +244,7 @@ export function showMessage(message, type = "info") {
         z-index: 3000;
         max-width: 400px;
         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        white-space: pre-line;
     `;
 
   messageArea.appendChild(messageDiv);

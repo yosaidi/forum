@@ -74,6 +74,10 @@ func createCategoriesTable() {
 
 // createPostsTable creates the posts table for forum discussions
 func createPostsTable() {
+	pragma:= `PRAGMA foreign_keys = ON;`
+	if _, err := DB.Exec(pragma); err != nil {
+		log.Fatal("Failed to enable foreign key support:", err)
+	}
 	query := `
 	CREATE TABLE IF NOt EXISTS posts(
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
