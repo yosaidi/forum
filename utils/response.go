@@ -141,19 +141,6 @@ func ParseJSON(r *http.Request, v interface{}) error {
 	return nil
 }
 
-// CORS headers for API requests
-func EnableCORS(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-}
-
-// HandleOptionsRequest handles preflight CORS requests
-func HandleOptionsRequest(w http.ResponseWriter) {
-	EnableCORS(w)
-	w.WriteHeader(http.StatusOK)
-}
-
 // Add to utils or create route_helpers.go
 func GetIDFromURL(r *http.Request, prefix string) (int, error) {
 	path := strings.TrimPrefix(r.URL.Path, "/api")

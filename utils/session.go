@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"forum/config"
 	"forum/database"
 
 	"github.com/google/uuid"
@@ -121,10 +120,10 @@ func SetSessionCookie(w http.ResponseWriter, session *Session) {
 		Name:     CookieName,
 		Value:    session.ID,
 		Expires:  session.ExpiresAt,
-		HttpOnly: true,                    // Prevent XSS attacks
-		Secure:   !config.IsDevelopment(), // HTTPS only in production
-		SameSite: http.SameSiteLaxMode,    // CSRF protection
-		Path:     "/",                     // Available site-wide
+		HttpOnly: true, // Prevent XSS attacks
+		Secure:   false,
+		SameSite: http.SameSiteLaxMode, // CSRF protection
+		Path:     "/",                  // Available site-wide
 	}
 
 	http.SetCookie(w, cookie)
@@ -137,7 +136,7 @@ func ClearSessionCookie(w http.ResponseWriter) {
 		Value:    "",
 		Expires:  time.Now().Add(-time.Hour), // Expire in the past
 		HttpOnly: true,
-		Secure:   !config.IsDevelopment(),
+		Secure:   false,
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 	}

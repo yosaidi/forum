@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -23,48 +22,6 @@ const (
 	SessionKey ContextKey = "session"
 )
 
-// RequireAuth middleware requires user authentication
-func RequireAuth(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Get session from request
-		session, err := utils.GetSessionFromRequest(r)
-		if err != nil {
-			utils.Unauthorized(w, "Authentication required. Please log in.")
-			return
-		}
-
-		// Check if session is still valid (extra safety check)
-		if session.ExpiresAt.Before(time.Now()) {
-			// Session expired, clear cookie
-			utils.Unauthorized(w, "Session expired. Please log in again.")
-			return
-		}
-
-		// Get user information
-		userID, _, err := utils.GetCurrentUser(r)
-		if err != nil {
-			utils.Unauthorized(w, "Invalid session. Please log in again.")
-			return
-		}
-
-		// Add user info to context
-		ctx := context.WithValue(r.Context(), UserIDKey, userID)
-
-		// to be deleted later:
-		// Optional: Refresh session if it's halfway to expiration
-		if time.Until(session.ExpiresAt) < utils.SessionDuration/2 {
-			refreshedSession, err := utils.RefreshSession(session.ID)
-			if err == nil {
-				utils.SetSessionCookie(w, refreshedSession)
-				ctx = context.WithValue(ctx, SessionKey, refreshedSession)
-			}
-		}
-
-		// Continue with authenticated context
-		next(w, r.WithContext(ctx))
-	}
-}
-
 // OptionalAuth middleware provides user info if logged in, but doesn't require it
 func OptionalAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -84,8 +41,9 @@ func OptionalAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
+
 		// Get user information
-		userID, _, err := utils.GetCurrentUser(r)
+		userID, username, err := utils.GetCurrentUser(r)
 		if err != nil {
 			// Invalid session, continue without auth
 			next(w, r)
@@ -94,42 +52,54 @@ func OptionalAuth(next http.HandlerFunc) http.HandlerFunc {
 
 		// Add user info to context
 		ctx := context.WithValue(r.Context(), UserIDKey, userID)
-		// ctx = context.WithValue(ctx, UsernameKey, username)
-		// ctx = context.WithValue(ctx, SessionKey, session)
-
+		ctx = context.WithValue(ctx, UsernameKey, username)
+		ctx = context.WithValue(ctx, SessionKey, session)
 		// Continue with authenticated context
 		next(w, r.WithContext(ctx))
 	}
 }
 
-// RequireOwnership middleware checks if user owns a resource
-// This is a higher-order function that returns middleware
-func RequireOwnership(getResourceUserID func(r *http.Request) (int, error)) func(http.HandlerFunc) http.HandlerFunc {
-	return func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			// Get current user ID from context (must be called after RequireAuth)
-			currentUserID, ok := r.Context().Value(UserIDKey).(int)
-			if !ok {
-				utils.InternalServerError(w, "Authentication context not found")
-				return
-			}
-
-			// Get the resource owner ID
-			resourceUserID, err := getResourceUserID(r)
-			if err != nil {
-				utils.NotFound(w, "Resource not found")
-				return
-			}
-
-			// Check ownership
-			if currentUserID != resourceUserID {
-				utils.Forbidden(w, "You don't have permission to access this resource")
-				return
-			}
-
-			// User owns the resource, continue
-			next(w, r)
+// RequireAuth middleware requires user authentication
+func RequireAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Get session from request
+		session, err := utils.GetSessionFromRequest(r)
+		if err != nil {
+			utils.Unauthorized(w, "Authentication required. Please log in.")
+			return
 		}
+
+		// Check if session is still valid (extra safety check)
+		if session.ExpiresAt.Before(time.Now()) {
+			// Session expired, clear cookie
+			utils.ClearSessionCookie(w)
+			utils.Unauthorized(w, "Session expired. Please log in again.")
+			return
+		}
+
+		// Get user information
+		userID, username, err := utils.GetCurrentUser(r)
+		if err != nil {
+			utils.Unauthorized(w, "Invalid session. Please log in again.")
+			return
+		}
+
+		// Add user info to context
+		ctx := context.WithValue(r.Context(), UserIDKey, userID)
+		ctx = context.WithValue(ctx, UsernameKey, username)
+		ctx = context.WithValue(ctx, SessionKey, session)
+
+		// Optional: Refresh session if it's halfway to expiration
+		if time.Until(session.ExpiresAt) < utils.SessionDuration/2 {
+			refreshedSession, err := utils.RefreshSession(session.ID)
+			if err == nil {
+				utils.SetSessionCookie(w, refreshedSession)
+				ctx = context.WithValue(ctx, SessionKey, refreshedSession)
+			}
+		}
+
+		// Continue with authenticated context
+		next(w, r.WithContext(ctx))
 	}
 }
 
@@ -137,6 +107,12 @@ func RequireOwnership(getResourceUserID func(r *http.Request) (int, error)) func
 func GetUserIDFromContext(r *http.Request) (int, bool) {
 	userID, ok := r.Context().Value(UserIDKey).(int)
 	return userID, ok
+}
+
+// GetUsernameFromContext retrieves username from request context
+func GetUsernameFromContext(r *http.Request) (string, bool) {
+	username, ok := r.Context().Value(UsernameKey).(string)
+	return username, ok
 }
 
 // LogRequests middleware logs HTTP requests (basic logging)
@@ -154,10 +130,10 @@ func LogRequests(next http.HandlerFunc) http.HandlerFunc {
 		duration := time.Since(start)
 
 		// Get user info if available
-		userID, hasUser := GetUserIDFromContext(r)
+		username, hasUser := GetUsernameFromContext(r)
 		userInfo := "anonymous"
 		if hasUser {
-			userInfo = fmt.Sprintf("user:%d", userID)
+			userInfo = username
 		}
 
 		log.Printf("%s %s %d %v %s %s",

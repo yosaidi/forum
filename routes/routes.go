@@ -14,7 +14,7 @@ func SetupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// API routes with middleware wrapper
-	mux.Handle("/api/", middleware.CORS(middleware.LogRequests(apiHandler())))
+	mux.Handle("/api/", middleware.OptionalAuth(middleware.LogRequests(apiHandler())))
 
 	// Static files (if needed)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./views/static/"))))

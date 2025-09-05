@@ -3,7 +3,6 @@ package database
 import (
 	"fmt"
 	"log"
-	"strings"
 )
 
 // RunMigrations creates all database tables and inserts default data
@@ -18,14 +17,13 @@ func RunMigrations() {
 	createVotesTable()
 	createSessionsTable()
 
-	AddUpdatedAtToCategories()
-
 	log.Println("Database migrations completed successfully")
 	fmt.Println()
 }
 
 // createUsersTable creates the users table for authentication
 func createUsersTable() {
+	// Users table creation
 	query := `
 	CREATE TABLE IF NOT EXISTS users (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,6 +48,7 @@ func createUsersTable() {
 
 // createCategoriesTable creates the categories table for forum sections
 func createCategoriesTable() {
+	// Catergories table creation
 	query := `
 	CREATE TABLE IF NOT EXISTS categories (
 	  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,10 +73,7 @@ func createCategoriesTable() {
 
 // createPostsTable creates the posts table for forum discussions
 func createPostsTable() {
-	pragma:= `PRAGMA foreign_keys = ON;`
-	if _, err := DB.Exec(pragma); err != nil {
-		log.Fatal("Failed to enable foreign key support:", err)
-	}
+	// Posts table creation with foreign keys to users and categories
 	query := `
 	CREATE TABLE IF NOt EXISTS posts(
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,6 +103,7 @@ func createPostsTable() {
 
 // createCommentsTable creates the comments table for post replies
 func createCommentsTable() {
+	// Comments table creation with foreign keys to users and posts
 	query := `
 	CREATE TABLE IF NOT EXISTS comments (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,6 +131,7 @@ func createCommentsTable() {
 }
 
 func createVotesTable() {
+	// Votes table creation with foreign keys to users, posts, and comments
 	query := `
 	CREATE TABLE IF NOT EXISTS votes (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,6 +160,7 @@ func createVotesTable() {
 
 // createSessionsTable creates the sessions table for user authentication
 func createSessionsTable() {
+	// Sessions table creation with foreign key to users
 	query := `
 	CREATE TABLE IF NOT EXISTS sessions (
 		id VARCHAR(255) PRIMARY KEY,
@@ -215,28 +214,4 @@ func insertDefaultCategories() {
 		}
 	}
 	log.Println("✓ Default categories inserted")
-}
-
-
-// AddUpdatedAtToCategories adds updated_at column to existing categories table
-func AddUpdatedAtToCategories() {
-	// Check if updated_at column exists
-	query := `SELECT sql FROM sqlite_master WHERE type='table' AND name='categories'`
-	var tableSchema string
-	err := DB.QueryRow(query).Scan(&tableSchema)
-	if err != nil {
-		log.Printf("Could not check categories table schema: %v", err)
-		return
-	}
-
-	// If updated_at doesn't exist, add it
-	if !strings.Contains(tableSchema, "updated_at") {
-		alterQuery := `ALTER TABLE categories ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP`
-		_, err := DB.Exec(alterQuery)
-		if err != nil {
-			log.Printf("Warning: Failed to add updated_at to categories: %v", err)
-		} else {
-			log.Println("✓ Added updated_at column to categories table")
-		}
-	}
 }

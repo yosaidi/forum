@@ -28,6 +28,12 @@ func Init() {
 		log.Fatal("Failed to ping database:", err)
 	}
 
+	// Enable foreign key enforcement
+	pragma := `PRAGMA foreign_keys = ON;`
+	if _, err := DB.Exec(pragma); err != nil {
+		log.Fatal("Failed to enable foreign key support:", err)
+	}
+
 	// Configure connection pool settings for better performance
 	DB.SetMaxOpenConns(25)
 	DB.SetMaxIdleConns(25)
@@ -51,12 +57,4 @@ func Close() {
 // so models and other packages may use this to perform operations
 func GetDB() *sql.DB {
 	return DB
-}
-
-// HealthCheck verifies the database is still responsive
-func HealthCheck() error {
-	if DB == nil {
-		return sql.ErrConnDone
-	}
-	return DB.Ping()
 }

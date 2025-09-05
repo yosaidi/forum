@@ -278,7 +278,7 @@ export const app = {
 
   // Initialize Application
   async init() {
-    // await checkAuthStatus();
+    await checkAuthStatus();
     this.loadPosts();
     this.loadCategories();
 
