@@ -285,7 +285,7 @@ func GetPostsController(w http.ResponseWriter, r *http.Request) {
 	// Filters
 	categoryID, _ := strconv.Atoi(query.Get("category"))
 	authorID, _ := strconv.Atoi(query.Get("author"))
-	sortBy := query.Get("sort") // "newest", "oldest", "popular"
+	sortBy := query.Get("sort") // "newest", "oldest", "popular" "my_posts", "my_likes"
 
 	if sortBy == "" {
 		sortBy = "newest"
@@ -296,11 +296,12 @@ func GetPostsController(w http.ResponseWriter, r *http.Request) {
 
 	// Get posts from database
 	posts, total, err := models.GetPosts(models.PostFilters{
-		CategoryID: categoryID,
-		AuthorID:   authorID,
-		SortBy:     sortBy,
-		Limit:      limit,
-		Offset:     offset,
+		CurrentUserID: userID,
+		CategoryID:    categoryID,
+		AuthorID:      authorID,
+		SortBy:        sortBy,
+		Limit:         limit,
+		Offset:        offset,
 	})
 	if err != nil {
 		utils.InternalServerError(w, "Failed to retrieve posts")
@@ -444,7 +445,7 @@ func getPostResponse(post *models.Post, currentUserID int) (*PostResponse, error
 	if err != nil {
 		categoryName = "Unknown" // fallback
 	}
-	
+
 	return &PostResponse{
 		ID:         post.ID,
 		Title:      post.Title,

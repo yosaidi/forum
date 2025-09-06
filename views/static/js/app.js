@@ -58,6 +58,7 @@ export const app = {
 
     if (result.success) {
       showMessage("Login successful!", "success");
+      this.showSorting();
       this.showHome();
     } else {
       showMessage(result.error, "error");
@@ -85,6 +86,7 @@ export const app = {
 
     if (result.success) {
       showMessage("Logged out successfully", "success");
+      this.showSorting();
       this.showHome();
     } else {
       showMessage(result.error, "error");
@@ -275,10 +277,30 @@ export const app = {
     state.currentPage = 1;
     this.loadPosts(1);
   },
-
+  showSorting() {
+    const sortSelect = document.getElementById("sort-select");
+    if (state.user) {
+      sortSelect.innerHTML = `
+        <option value="newest">Newest</option>
+        <option value="oldest">Oldest</option>
+        <option value="popular">Popular</option>
+        <option value="my_posts">My Posts</option>
+        <option value="my_likes">My Likes</option>
+        <option value="my_dislikes">My Dislikes</option>
+      `;
+    } else {
+      sortSelect.innerHTML = `
+        <option value="newest">Newest</option>
+        <option value="oldest">Oldest</option>
+        <option value="popular">Popular</option>
+      `;
+    }
+    sortSelect.value = state.currentSort;
+  },
   // Initialize Application
   async init() {
     await checkAuthStatus();
+    this.showSorting();
     this.loadPosts();
     this.loadCategories();
 

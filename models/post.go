@@ -24,19 +24,13 @@ type Post struct {
 }
 
 type PostFilters struct {
-	CategoryID int
-	AuthorID   int
-	SortBy     string
-	Limit      int
-	Offset     int
+	CurrentUserID int
+	CategoryID    int
+	AuthorID      int
+	SortBy        string
+	Limit         int
+	Offset        int
 }
-
-// type Category struct {
-// 	ID          int    `json:"id"`
-// 	Name        string `json:"name"`
-// 	Description string `json:"description"`
-// 	PostCount   int    `json:"post_count"`
-// }
 
 func (p *Post) Create() error {
 	query := `
@@ -112,20 +106,38 @@ func GetPosts(filters PostFilters) ([]Post, int, error) {
 		args = append(args, filters.AuthorID)
 	}
 
-	if len(whereClauses) > 0 {
-		where := " WHERE " + strings.Join(whereClauses, " AND ")
-		baseQuery += where
-		countQuery += where
-	}
-
 	// Sorting
 	switch filters.SortBy {
 	case "oldest":
 		baseQuery += " ORDER BY p.created_at ASC"
 	case "popular":
 		baseQuery += " ORDER BY p.likes DESC, p.dislikes ASC"
+	case "my_posts":
+		if filters.CurrentUserID > 0 {
+			whereClauses = append(whereClauses, "p.user_id = ?")
+			args = append(args, filters.CurrentUserID)
+		}
+	case "my_likes":
+		if filters.CurrentUserID > 0 {
+			baseQuery += " JOIN votes v ON p.id = v.post_id AND v.user_id = ? AND v.vote_type = 'like'"
+			countQuery += " JOIN votes v ON p.id = v.post_id AND v.user_id = ? AND v.vote_type = 'like'"
+			args = append(args, filters.CurrentUserID)
+		}
+	case "my_dislikes":
+		if filters.CurrentUserID > 0 {
+			baseQuery += " JOIN votes v ON p.id = v.post_id AND v.user_id = ? AND v.vote_type = 'dislike'"
+			countQuery += " JOIN votes v ON p.id = v.post_id AND v.user_id = ? AND v.vote_type = 'dislike'"
+			args = append(args, filters.CurrentUserID)
+		}
 	default: // newest
 		baseQuery += " ORDER BY p.created_at DESC"
+	}
+
+	// Combine where clauses
+	if len(whereClauses) > 0 {
+		where := " WHERE " + strings.Join(whereClauses, " AND ")
+		baseQuery += where
+		countQuery += where
 	}
 
 	// Pagination
@@ -197,16 +209,6 @@ func (p *Post) GetCommentCount() (int, error) {
 	p.CommentCount = count
 	return count, nil
 }
-
-// 		var category Category
-// 		err := rows.Scan(&category.ID, &category.Name, &category.Description, &category.PostCount)
-// 		if err != nil {
-// 			continue
-// 		}
-// 		categories = append(categories, category)
-// 	}
-// 	return categories, nil
-// }
 
 func (p *Post) Update() error {
 	query := `
