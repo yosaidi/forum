@@ -81,6 +81,11 @@ func MethodNotAllowed(w http.ResponseWriter, message string) {
 	Error(w, http.StatusMethodNotAllowed, message)
 }
 
+// TooManyRequests sends a 429 Too Many Requests JSON response
+func TooManyRequests(w http.ResponseWriter, message string) {
+	Error(w, http.StatusTooManyRequests, message)
+}
+
 // ValidationError sends a 422 Unprocessable Entity JSON response
 // Used for validation errors with detailed field information
 func ValidationError(w http.ResponseWriter, errors map[string]string) {
