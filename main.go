@@ -9,6 +9,7 @@ import (
 
 	"forum/config"
 	"forum/database"
+	"forum/middleware"
 	"forum/routes"
 )
 
@@ -16,11 +17,17 @@ func main() {
 	// Load Config
 	config.Load()
 
-	// Initialize database (not used yet)
+	// Initialize database
 	database.Init()
 
-	// setup routes (later)
+	// Setup custom rate limits for your forum
+	middleware.SetupCustomRateLimits()
+
+	// Setup routes with enhanced rate limiting
 	mux := routes.SetupRoutes()
+
+	// Print rate limit configuration
+	middleware.PrintRateLimitConfig()
 
 	// Print all routes for debugging
 	fmt.Println("Available routes:")
@@ -35,6 +42,7 @@ func main() {
 
 	// Start server in a goroutine
 	go func() {
+		log.Printf("Rate limiting is active - see configuration above")
 		log.Printf("Server starting on http://localhost%s", config.GetPort())
 		if err := http.ListenAndServe(config.GetPort(), mux); err != nil {
 			log.Fatal("Server failed to start:", err)
