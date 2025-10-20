@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -29,12 +28,12 @@ var (
 	globalMu sync.RWMutex
 
 	rateLimits = map[string]RateLimitConfig{
-		"auth":       {MaxRequests: 5, Window: 15 * time.Minute}, // Very restrictive for testing
-		"posts":      {MaxRequests: 10, Window: time.Minute},
-		"comments":   {MaxRequests: 15, Window: time.Minute},
-		"users":      {MaxRequests: 20, Window: time.Minute},
-		"categories": {MaxRequests: 50, Window: time.Minute},
-		"default":    {MaxRequests: 10, Window: time.Minute},
+		"auth":       {MaxRequests: 5, Window: 5 * time.Minute},
+		"posts":      {MaxRequests: 10, Window: time.Hour},
+		"comments":   {MaxRequests: 30, Window: time.Hour},
+		"users":      {MaxRequests: 60, Window: time.Minute},
+		"categories": {MaxRequests: 100, Window: time.Minute},
+		"default":    {MaxRequests: 20, Window: time.Minute},
 	}
 
 	cleanupOnce sync.Once
@@ -48,7 +47,7 @@ func startCleanup() {
 	})
 }
 
-// cleanup old visitors every 1 minute (more frequent for testing)
+// cleanupVisitors removes stale visitor records periodically
 func cleanupVisitors() {
 	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
@@ -58,35 +57,38 @@ func cleanupVisitors() {
 		now := time.Now()
 		toDelete := make([]string, 0)
 
-		for ip, visitor := range visitors {
-			visitor.mu.RLock()
-			shouldDelete := true
+		for ip, v := range visitors {
+			v.mu.RLock()
+			allStale := true
 
-			for category, lastSeen := range visitor.lastSeen {
-				config := getRateLimitConfig(category)
+			// Check if all categories for this visitor are outside their windows
+			for category, lastSeen := range v.lastSeen {
+				config := getRateLimitConfigUnsafe(category)
 				if now.Sub(lastSeen) <= config.Window {
-					shouldDelete = false
+					allStale = false
 					break
 				}
 			}
 
-			visitor.mu.RUnlock()
+			v.mu.RUnlock()
 
-			if shouldDelete {
+			if allStale {
 				toDelete = append(toDelete, ip)
 			} else {
-				visitor.mu.Lock()
-				for category, lastSeen := range visitor.lastSeen {
-					config := getRateLimitConfig(category)
+				// Clean up individual stale categories
+				v.mu.Lock()
+				for category, lastSeen := range v.lastSeen {
+					config := getRateLimitConfigUnsafe(category)
 					if now.Sub(lastSeen) > config.Window {
-						delete(visitor.requests, category)
-						delete(visitor.lastSeen, category)
+						delete(v.requests, category)
+						delete(v.lastSeen, category)
 					}
 				}
-				visitor.mu.Unlock()
+				v.mu.Unlock()
 			}
 		}
 
+		// Delete stale visitors
 		for _, ip := range toDelete {
 			delete(visitors, ip)
 		}
@@ -96,51 +98,62 @@ func cleanupVisitors() {
 
 // extractIP extracts the IP address from RemoteAddr
 func extractIP(remoteAddr string) string {
-	host, _, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		return remoteAddr
+	if ip, _, err := net.SplitHostPort(remoteAddr); err == nil {
+		return ip
 	}
-	return host
+	return remoteAddr
 }
 
-// getVisitor retrieves the visitor for a given IP address
+// getVisitor retrieves or creates a visitor for a given IP address
 func getVisitor(ip string) *visitor {
 	globalMu.Lock()
 	defer globalMu.Unlock()
 
-	v, exists := visitors[ip]
-	if !exists {
-		if len(visitors) >= maxVisitors {
-			var oldestIP string
-			var oldestTime time.Time = time.Now()
-
-			for visitorIP, visitorData := range visitors {
-				visitorData.mu.RLock()
-				for _, lastSeen := range visitorData.lastSeen {
-					if lastSeen.Before(oldestTime) {
-						oldestTime = lastSeen
-						oldestIP = visitorIP
-					}
-				}
-				visitorData.mu.RUnlock()
-			}
-
-			if oldestIP != "" {
-				delete(visitors, oldestIP)
-			}
-		}
-
-		v = &visitor{
-			requests: make(map[string]int),
-			lastSeen: make(map[string]time.Time),
-		}
-		visitors[ip] = v
+	// Return existing visitor
+	if v, exists := visitors[ip]; exists {
+		return v
 	}
+
+	// Evict oldest visitor if at capacity
+	if len(visitors) >= maxVisitors {
+		var oldestIP string
+		oldestTime := time.Now()
+
+		for visitorIP, visitorData := range visitors {
+			visitorData.mu.RLock()
+			for _, t := range visitorData.lastSeen {
+				if t.Before(oldestTime) {
+					oldestTime = t
+					oldestIP = visitorIP
+				}
+			}
+			visitorData.mu.RUnlock()
+		}
+
+		if oldestIP != "" {
+			delete(visitors, oldestIP)
+		}
+	}
+
+	// Create new visitor
+	v := &visitor{
+		requests: make(map[string]int),
+		lastSeen: make(map[string]time.Time),
+	}
+	visitors[ip] = v
+
 	return v
 }
 
-// getRateLimitConfig gets the rate limit configuration for a category
+// getRateLimitConfig gets the rate limit configuration for a category (thread-safe)
 func getRateLimitConfig(category string) RateLimitConfig {
+	globalMu.RLock()
+	defer globalMu.RUnlock()
+	return getRateLimitConfigUnsafe(category)
+}
+
+// getRateLimitConfigUnsafe gets config without acquiring lock (caller must hold lock)
+func getRateLimitConfigUnsafe(category string) RateLimitConfig {
 	if config, exists := rateLimits[category]; exists {
 		return config
 	}
@@ -149,88 +162,83 @@ func getRateLimitConfig(category string) RateLimitConfig {
 
 // determineCategory extracts the endpoint category from the request path
 func determineCategory(path string) string {
-	if path == "" || path == "/" {
+	path = strings.Trim(path, "/")
+
+	if path == "" {
 		return "default"
 	}
 
-	// Remove leading slash if present
-	path = strings.TrimPrefix(path, "/")
-
-	// Extract the first segment as category
-	if idx := strings.Index(path, "/"); idx != -1 {
-		category := path[:idx]
-		return category
-	}
-
-	return path
+	// Get first segment as category
+	segments := strings.SplitN(path, "/", 2)
+	return segments[0]
 }
 
-// RateLimitForCategory creates a rate limiter for a specific category
-func RateLimitForCategory(category string) func(http.Handler) http.Handler {
-	startCleanup()
-
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := extractIP(r.RemoteAddr)
-			visitor := getVisitor(ip)
-			config := getRateLimitConfig(category)
-
-			visitor.mu.Lock()
-			defer visitor.mu.Unlock()
-
-			now := time.Now()
-
-			// Check if this category's window has expired
-			if lastSeen, exists := visitor.lastSeen[category]; exists {
-				if now.Sub(lastSeen) > config.Window {
-					visitor.requests[category] = 0
-				}
-			}
-
-			// Increment request count for this category
-			visitor.requests[category]++
-			visitor.lastSeen[category] = now
-
-			currentCount := visitor.requests[category]
-
-			// Rate-limit headers
-			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(config.MaxRequests))
-			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(config.MaxRequests-currentCount))
-			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(visitor.lastSeen[category].Add(config.Window).Unix(), 10))
-
-			// Check rate limit
-			if currentCount > config.MaxRequests {
-				message := fmt.Sprintf("Rate limit exceeded for %s. Max %d requests per %v. Please slow down.",
-					category, config.MaxRequests, config.Window)
-				utils.TooManyRequests(w, message)
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-// RateLimit is the general rate limiter that automatically determines category
+// RateLimit is the general rate limiter middleware
 func RateLimit(next http.Handler) http.Handler {
 	startCleanup()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
+		// Extract IP
+		ip := extractIP(r.RemoteAddr)
+
+		// Determine category from path
+		path := strings.TrimPrefix(r.URL.Path, "/")
 		category := "default"
 
-		// Handle API routes
-		if strings.HasPrefix(path, "/api/") {
-			apiPath := strings.TrimPrefix(path, "/api/")
-			category = determineCategory(apiPath)
-		} else {
-			category = determineCategory(path)
+		// Strip /api prefix if present
+		path = strings.TrimPrefix(path, "api/")
+
+		category = determineCategory(path)
+		if category == "" {
+			category = "default"
 		}
 
-		// Apply rate limiting for the determined category
-		limiter := RateLimitForCategory(category)
-		limiter(next).ServeHTTP(w, r)
+		// Get visitor and config
+		v := getVisitor(ip)
+		cfg := getRateLimitConfig(category)
+		now := time.Now()
+
+		// Apply rate limiting logic
+		v.mu.Lock()
+
+		lastSeen, exists := v.lastSeen[category]
+		if !exists || now.Sub(lastSeen) > cfg.Window {
+			// Reset counter if window expired
+			v.requests[category] = 0
+		}
+
+		v.requests[category]++
+		v.lastSeen[category] = now
+		reqCount := v.requests[category]
+
+		v.mu.Unlock()
+
+		// Set rate limit headers
+		setRateLimitHeaders(w, cfg, reqCount, now)
+
+		// Check if limit exceeded (>= not > to properly enforce MaxRequests)
+		if reqCount > cfg.MaxRequests {
+			utils.TooManyRequests(w,
+				fmt.Sprintf("Rate limit exceeded for %s: %d requests allowed per %v",
+					category, cfg.MaxRequests, cfg.Window))
+			return
+		}
+
+		// Continue to next handler
+		next.ServeHTTP(w, r)
 	})
+}
+
+// setRateLimitHeaders sets standard X-RateLimit-* headers
+func setRateLimitHeaders(w http.ResponseWriter, cfg RateLimitConfig, count int, lastSeen time.Time) {
+	remaining := cfg.MaxRequests - count
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	w.Header().Set("X-RateLimit-Limit", strconv.Itoa(cfg.MaxRequests))
+	w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+	w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(lastSeen.Add(cfg.Window).Unix(), 10))
 }
 
 // SetRateLimit allows dynamic configuration of rate limits
@@ -243,12 +251,12 @@ func SetRateLimit(category string, maxRequests int, window time.Duration) {
 	}
 }
 
-// GetRateLimits returns current rate limit configurations
+// GetRateLimits returns a copy of current rate limit configurations
 func GetRateLimits() map[string]RateLimitConfig {
 	globalMu.RLock()
 	defer globalMu.RUnlock()
 
-	result := make(map[string]RateLimitConfig)
+	result := make(map[string]RateLimitConfig, len(rateLimits))
 	for k, v := range rateLimits {
 		result[k] = v
 	}
@@ -266,52 +274,53 @@ func GetVisitorStats() map[string]interface{} {
 	}
 
 	categoryStats := make(map[string]int)
-	for _, visitor := range visitors {
-		visitor.mu.RLock()
-		for category := range visitor.requests {
+	for _, v := range visitors {
+		v.mu.RLock()
+		for category := range v.requests {
 			categoryStats[category]++
 		}
-		visitor.mu.RUnlock()
+		v.mu.RUnlock()
 	}
 	stats["categories"] = categoryStats
 
 	return stats
 }
 
-// SetupCustomRateLimits - Production-ready rate limits
-func SetupCustomRateLimits() {
-	// Authentication endpoints - prevent brute force attacks
-	SetRateLimit("auth", 5, 5*time.Minute) // 5 auth attempts per 5 minutes
+// SetMaxVisitors configures the maximum number of tracked visitors
+func SetMaxVisitors(max int) {
+	globalMu.Lock()
+	defer globalMu.Unlock()
+	maxVisitors = max
+}
 
-	// Posts - prevent spam while allowing normal posting
-	SetRateLimit("posts", 10, time.Hour) // 10 posts per hour
+// ResetVisitor clears rate limit data for a specific IP (useful for testing)
+func ResetVisitor(ip string) {
+	globalMu.Lock()
+	defer globalMu.Unlock()
+	delete(visitors, ip)
+}
 
-	// Comments - encourage discussion but prevent spam
-	SetRateLimit("comments", 30, time.Hour) // 30 comments per hour (1 every 2 minutes)
-
-	// User operations - profile views, updates, avatar uploads
-	SetRateLimit("users", 60, time.Minute) // 60 user operations per minute
-
-	// Categories - mostly read operations, be generous
-	SetRateLimit("categories", 100, time.Minute) // 100 category requests per minute
-
-	// Default fallback for any other endpoints
-	SetRateLimit("default", 20, time.Minute) // 20 requests per minute
-
-	log.Println("Applied production rate limits successfully")
+// ResetAllVisitors clears all visitor data (useful for testing)
+func ResetAllVisitors() {
+	globalMu.Lock()
+	defer globalMu.Unlock()
+	visitors = make(map[string]*visitor)
 }
 
 // PrintRateLimitConfig displays current rate limit configuration
 func PrintRateLimitConfig() {
 	limits := GetRateLimits()
-	fmt.Println()
-	fmt.Println("=== Rate Limit Configuration ===")
+	fmt.Println("\n=== Rate Limit Configuration ===")
 
-	for category, config := range limits {
-		fmt.Printf("%-12s: %3d requests per %v\n",
-			category, config.MaxRequests, formatDuration(config.Window))
+	// Print in consistent order
+	categories := []string{"auth", "posts", "comments", "users", "categories", "default"}
+	for _, category := range categories {
+		if config, exists := limits[category]; exists {
+			fmt.Printf("%-12s: %3d requests per %v\n",
+				category, config.MaxRequests, formatDuration(config.Window))
+		}
 	}
-	fmt.Println("=================================")
+	fmt.Println("================================")
 	fmt.Println()
 }
 
@@ -326,28 +335,22 @@ func formatDuration(d time.Duration) string {
 	}
 }
 
-// SetMaxVisitors allows configuration of maximum visitors
-func SetMaxVisitors(max int) {
-	globalMu.Lock()
-	defer globalMu.Unlock()
-	maxVisitors = max
-}
-
 // PrintCurrentVisitors shows current visitor status (for debugging)
 func PrintCurrentVisitors() {
 	globalMu.RLock()
 	defer globalMu.RUnlock()
 
 	fmt.Printf("\n=== Current Visitors (%d) ===\n", len(visitors))
-	for ip, visitor := range visitors {
-		visitor.mu.RLock()
+	for ip, v := range visitors {
+		v.mu.RLock()
 		fmt.Printf("IP: %s\n", ip)
-		for category, count := range visitor.requests {
-			lastSeen := visitor.lastSeen[category]
+		for category, count := range v.requests {
+			lastSeen := v.lastSeen[category]
 			fmt.Printf("  %s: %d requests (last seen: %s ago)\n",
 				category, count, time.Since(lastSeen).Round(time.Second))
 		}
-		visitor.mu.RUnlock()
+		v.mu.RUnlock()
 	}
-	fmt.Println("===============================")
+	fmt.Println("==============================")
+	fmt.Println()
 }

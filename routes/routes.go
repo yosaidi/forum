@@ -9,151 +9,152 @@ import (
 	"forum/middleware"
 )
 
+// Constant file paths
+const (
+	StaticDir  = "./views/static/"
+	UploadsDir = "./uploads/"
+	IndexFile  = "./views/index.html"
+)
+
 // SetupRoutes configures all application routes using standard net/http
 func SetupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 
-	// API routes with middleware wrapper
-	mux.Handle("/api/", middleware.RateLimit(
-		middleware.OptionalAuth(
-			middleware.LogRequests(apiHandler()))))
+	// API routes with global middleware applied once
+	apiHandlerWithMiddlware := middleware.RateLimit(
+		middleware.LogRequests(
+			middleware.OptionalAuth(apiHandler()),
+		),
+	)
+	mux.Handle("/api/", apiHandlerWithMiddlware)
 
-	// Static files (if needed)
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("./views/static/"))))
+	// Static files (CSS, JS, images, etc.)
+	mux.Handle("/static/",
+		http.StripPrefix("/static/",
+			http.FileServer(
+				http.Dir(StaticDir)),
+		),
+	)
 
 	// Uploaded files (avatars, etc.)
-	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads/"))))
+	mux.Handle("/uploads/",
+		http.StripPrefix("/uploads/",
+			http.FileServer(http.Dir(UploadsDir)),
+		),
+	)
 
-	// Serve SPA (index.html) for the root
+	// SPA fallback for all other routes (except API & static)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "./views/index.html")
+		if strings.HasPrefix(r.URL.Path, "/api/") ||
+			strings.HasPrefix(r.URL.Path, "/static/") ||
+			strings.HasPrefix(r.URL.Path, "/uploads/") {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, IndexFile)
 	})
 
 	return mux
 }
 
+// Route defines a single API route
+type Route struct {
+	Method       string
+	Path         string // Uses {id} as placeholder for numeric IDs
+	Handler      http.HandlerFunc
+	RequiresAuth bool
+}
+
+// List of all API routes
+var apiRoutes = []Route{
+	// Auth routes
+	{Method: http.MethodPost, Path: "/auth/register", Handler: controllers.RegisterController},
+	{Method: http.MethodPost, Path: "/auth/login", Handler: controllers.LoginController},
+	{Method: http.MethodPost, Path: "/auth/logout", Handler: controllers.LogoutController, RequiresAuth: true},
+	{Method: http.MethodGet, Path: "/auth/me", Handler: controllers.MeController, RequiresAuth: true},
+	{Method: http.MethodPost, Path: "/auth/refresh", Handler: controllers.RefreshSessionController},
+	{Method: http.MethodGet, Path: "/auth/check-username", Handler: controllers.CheckUsernameController},
+	{Method: http.MethodGet, Path: "/auth/check-email", Handler: controllers.CheckEmailController},
+
+	// Post routes
+	{Method: http.MethodGet, Path: "/posts", Handler: middleware.OptionalAuth(controllers.GetPostsController)},
+	{Method: http.MethodPost, Path: "/posts", Handler: middleware.RequireAuth(controllers.CreatePostController), RequiresAuth: true},
+	{Method: http.MethodGet, Path: "/posts/{id}", Handler: middleware.OptionalAuth(controllers.GetPostController)},
+	{Method: http.MethodPut, Path: "/posts/{id}", Handler: middleware.RequireAuth(controllers.UpdatePostController), RequiresAuth: true},
+	{Method: http.MethodDelete, Path: "/posts/{id}", Handler: middleware.RequireAuth(controllers.DeletePostController), RequiresAuth: true},
+	{Method: http.MethodPost, Path: "/posts/{id}/vote", Handler: middleware.RequireAuth(controllers.VotePostController), RequiresAuth: true},
+
+	// Post comments
+	{Method: http.MethodGet, Path: "/posts/{id}/comments", Handler: middleware.OptionalAuth(controllers.GetCommentsController)},
+	{Method: http.MethodPost, Path: "/posts/{id}/comments", Handler: middleware.RequireAuth(controllers.CreateCommentController), RequiresAuth: true},
+
+	// Comments
+	{Method: http.MethodPost, Path: "/comments", Handler: middleware.RequireAuth(controllers.CreateCommentController), RequiresAuth: true},
+	{Method: http.MethodGet, Path: "/comments/{id}", Handler: middleware.OptionalAuth(controllers.GetCommentController)},
+	{Method: http.MethodPut, Path: "/comments/{id}", Handler: middleware.RequireAuth(controllers.UpdateCommentController), RequiresAuth: true},
+	{Method: http.MethodDelete, Path: "/comments/{id}", Handler: middleware.RequireAuth(controllers.DeleteCommentController), RequiresAuth: true},
+	{Method: http.MethodPost, Path: "/comments/{id}/vote", Handler: middleware.RequireAuth(controllers.VoteCommentController), RequiresAuth: true},
+
+	// Users
+	{Method: http.MethodGet, Path: "/users/{id}", Handler: controllers.GetUserProfileController},
+	{Method: http.MethodPut, Path: "/users/{id}", Handler: middleware.RequireAuth(controllers.UpdateUserProfileController), RequiresAuth: true},
+	{Method: http.MethodPost, Path: "/users/{id}/avatar", Handler: middleware.RequireAuth(controllers.UploadAvatarController), RequiresAuth: true},
+	{Method: http.MethodDelete, Path: "/users/{id}/avatar", Handler: middleware.RequireAuth(controllers.DeleteAvatarController), RequiresAuth: true},
+	{Method: http.MethodGet, Path: "/users/{id}/posts", Handler: controllers.GetUserPostsController},
+	{Method: http.MethodGet, Path: "/users/{id}/comments", Handler: controllers.GetUserCommentsController},
+	{Method: http.MethodGet, Path: "/users/{id}/stats", Handler: controllers.GetUserStatsController},
+
+	// Categories
+	{Method: http.MethodGet, Path: "/categories", Handler: controllers.GetCategoriesController},
+	{Method: http.MethodGet, Path: "/categories/{id}", Handler: controllers.GetCategoryController},
+}
+
 // apiHandler returns the main API handler that routes all /api/* requests
 func apiHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Remove /api prefix from path
 		path := strings.TrimPrefix(r.URL.Path, "/api")
 
-		// Route to appropriate handler based on path and method
-		switch {
-		// Authentication routes
-		case path == "/auth/register" && r.Method == http.MethodPost:
-			controllers.RegisterController(w, r)
-		case path == "/auth/login" && r.Method == http.MethodPost:
-			controllers.LoginController(w, r)
-		case path == "/auth/logout" && r.Method == http.MethodPost:
-			controllers.LogoutController(w, r)
-		case path == "/auth/me" && r.Method == http.MethodGet:
-			controllers.MeController(w, r)
-		case path == "/auth/refresh" && r.Method == http.MethodPost:
-			controllers.RefreshSessionController(w, r)
-		case path == "/auth/check-username" && r.Method == http.MethodGet:
-			controllers.CheckUsernameController(w, r)
-		case path == "/auth/check-email" && r.Method == http.MethodGet:
-			controllers.CheckEmailController(w, r)
+		for _, route := range apiRoutes {
+			if r.Method != route.Method {
+				continue
+			}
 
-		// Post routes
-		case path == "/posts" && r.Method == http.MethodGet:
-			middleware.OptionalAuth(controllers.GetPostsController)(w, r)
-		case path == "/posts" && r.Method == http.MethodPost:
-			middleware.RequireAuth(controllers.CreatePostController)(w, r)
-		case matchPath(path, "/posts/", true) && r.Method == http.MethodGet:
-			middleware.OptionalAuth(controllers.GetPostController)(w, r)
-		case matchPath(path, "/posts/", true) && r.Method == http.MethodPut:
-			middleware.RequireAuth(controllers.UpdatePostController)(w, r)
-		case matchPath(path, "/posts/", true) && r.Method == http.MethodDelete:
-			middleware.RequireAuth(controllers.DeletePostController)(w, r)
-		case matchPath(path, "/posts/", true, "/vote") && r.Method == http.MethodPost:
-			middleware.RequireAuth(controllers.VotePostController)(w, r)
-
-		// Post comments routes
-		case matchPath(path, "/posts/", true, "/comments") && r.Method == http.MethodGet:
-			middleware.OptionalAuth(controllers.GetCommentsController)(w, r)
-		case matchPath(path, "/posts/", true, "/comments") && r.Method == http.MethodPost:
-			middleware.RequireAuth(controllers.CreateCommentController)(w, r)
-
-		// Comment routes
-		case path == "/comments" && r.Method == http.MethodPost:
-			middleware.RequireAuth(controllers.CreateCommentController)(w, r)
-		case matchPath(path, "/comments/", true) && r.Method == http.MethodGet:
-			middleware.OptionalAuth(controllers.GetCommentController)(w, r)
-		case matchPath(path, "/comments/", true) && r.Method == http.MethodPut:
-			middleware.RequireAuth(controllers.UpdateCommentController)(w, r)
-		case matchPath(path, "/comments/", true) && r.Method == http.MethodDelete:
-			middleware.RequireAuth(controllers.DeleteCommentController)(w, r)
-		case matchPath(path, "/comments/", true, "/vote") && r.Method == http.MethodPost:
-			middleware.RequireAuth(controllers.VoteCommentController)(w, r)
-
-		// User routes
-		case matchPath(path, "/users/", true) && r.Method == http.MethodGet:
-			controllers.GetUserProfileController(w, r)
-		case matchPath(path, "/users/", true) && r.Method == http.MethodPut:
-			middleware.RequireAuth(controllers.UpdateUserProfileController)(w, r)
-		case matchPath(path, "/users/", true, "/avatar") && r.Method == http.MethodPost:
-			middleware.RequireAuth(controllers.UploadAvatarController)(w, r)
-		case matchPath(path, "/users/", true, "/avatar") && r.Method == http.MethodDelete:
-			middleware.RequireAuth(controllers.DeleteAvatarController)(w, r)
-		case matchPath(path, "/users/", true, "/posts") && r.Method == http.MethodGet:
-			controllers.GetUserPostsController(w, r)
-		case matchPath(path, "/users/", true, "/comments") && r.Method == http.MethodGet:
-			controllers.GetUserCommentsController(w, r)
-		case matchPath(path, "/users/", true, "/stats") && r.Method == http.MethodGet:
-			controllers.GetUserStatsController(w, r)
-
-		// Category routes
-		case path == "/categories" && r.Method == http.MethodGet:
-			controllers.GetCategoriesController(w, r)
-		case matchPath(path, "/categories/", true) && r.Method == http.MethodGet:
-			controllers.GetCategoryController(w, r)
-		default:
-			http.NotFound(w, r)
+			// Match paths, including {id} placeholders
+			if matchRoute(path, route.Path) {
+				handler := route.Handler
+				if route.RequiresAuth {
+					handler = middleware.RequireAuth(handler)
+				}
+				handler(w, r)
+				return
+			}
 		}
+
+		http.NotFound(w, r)
 	}
 }
 
-// Helper functions for URL matching
+// matchRoute matches dynamic paths with {id} placeholder
+func matchRoute(actual, template string) bool {
+	actualParts := strings.Split(strings.Trim(actual, "/"), "/")
+	templateParts := strings.Split(strings.Trim(template, "/"), "/")
 
-// matchPath checks if a path matches a pattern with optional ID and suffix
-// Example: matchPath("/posts/123", "/posts/", true) returns true
-// Example: matchPath("/posts/123/vote", "/posts/", true, "/vote") returns true
-func matchPath(path, prefix string, expectID bool, suffix ...string) bool {
-	if !strings.HasPrefix(path, prefix) {
+	if len(actualParts) != len(templateParts) {
 		return false
 	}
 
-	remaining := strings.TrimPrefix(path, prefix)
-
-	if expectID {
-		// Extract ID part
-		parts := strings.Split(remaining, "/")
-		if len(parts) == 0 {
-			return false
-		}
-
-		// Check if first part is a number (ID)
-		if _, err := strconv.Atoi(parts[0]); err != nil {
-			return false
-		}
-
-		// If we have a suffix to match
-		if len(suffix) > 0 {
-			expectedSuffix := strings.Join(suffix, "")
-			actualSuffix := strings.Join(parts[1:], "/")
-			if actualSuffix != strings.TrimPrefix(expectedSuffix, "/") {
+	for i := 0; i < len(templateParts); i++ {
+		if templateParts[i] == "{id}" {
+			// We need to ensure {id} is a number
+			if _, err := strconv.Atoi(actualParts[i]); err != nil {
 				return false
 			}
-		} else {
-			// No suffix expected, should only be the ID
-			if len(parts) > 1 {
-				return false
-			}
+			continue
+		}
+		if templateParts[i] != actualParts[i] {
+			return false
 		}
 	}
-
 	return true
 }
 
