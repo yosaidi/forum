@@ -84,17 +84,24 @@ func GetPosts(filters PostFilters) ([]Post, int, error) {
 	var posts []Post
 	var args []interface{}
 	var whereClauses []string
+	var joinClauses []string
+	var orderClause string
 
 	baseQuery := `
-	SELECT p.id, p.title, p.content, p.user_id, u.username, p.category_id, c.name,
-	p.likes, p.dislikes, p.created_at, p.updated_at,
-	(SELECT COUNT(*) FROM comments WHERE post_id = p.id) as comment_count
+	SELECT 
+		p.id, p.title, p.content, p.user_id, u.username, 
+		p.category_id, c.name, p.likes, p.dislikes, 
+		p.created_at, p.updated_at,
+		(SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS comment_count
 	FROM posts p
 	JOIN users u ON p.user_id = u.id
 	JOIN categories c ON p.category_id = c.id
-    `
+	`
 
-	countQuery := "SELECT COUNT(*) FROM posts p"
+	countQuery := `SELECT COUNT(*) FROM posts p
+	JOIN users u ON p.user_id = u.id
+	JOIN categories c ON p.category_id = c.id
+	`
 
 	// Filters
 	if filters.CategoryID > 0 {
@@ -106,12 +113,8 @@ func GetPosts(filters PostFilters) ([]Post, int, error) {
 		args = append(args, filters.AuthorID)
 	}
 
-	// Sorting
+	// Special filters
 	switch filters.SortBy {
-	case "oldest":
-		baseQuery += " ORDER BY p.created_at ASC"
-	case "popular":
-		baseQuery += " ORDER BY p.likes DESC, p.dislikes ASC"
 	case "my_posts":
 		if filters.CurrentUserID > 0 {
 			whereClauses = append(whereClauses, "p.user_id = ?")
@@ -119,39 +122,50 @@ func GetPosts(filters PostFilters) ([]Post, int, error) {
 		}
 	case "my_likes":
 		if filters.CurrentUserID > 0 {
-			baseQuery += " JOIN votes v ON p.id = v.post_id AND v.user_id = ? AND v.vote_type = 'like'"
-			countQuery += " JOIN votes v ON p.id = v.post_id AND v.user_id = ? AND v.vote_type = 'like'"
+			joinClauses = append(joinClauses, "JOIN votes v ON p.id = v.post_id AND v.user_id = ? AND v.vote_type = 'like'")
 			args = append(args, filters.CurrentUserID)
 		}
 	case "my_dislikes":
 		if filters.CurrentUserID > 0 {
-			baseQuery += " JOIN votes v ON p.id = v.post_id AND v.user_id = ? AND v.vote_type = 'dislike'"
-			countQuery += " JOIN votes v ON p.id = v.post_id AND v.user_id = ? AND v.vote_type = 'dislike'"
+			joinClauses = append(joinClauses, "JOIN votes v ON p.id = v.post_id AND v.user_id = ? AND v.vote_type = 'dislike'")
 			args = append(args, filters.CurrentUserID)
 		}
-	default: // newest
-		baseQuery += " ORDER BY p.created_at DESC"
 	}
 
-	// Combine where clauses
+	// Sorting
+	switch filters.SortBy {
+	case "oldest":
+		orderClause = "ORDER BY p.created_at ASC"
+	case "popular":
+		orderClause = "ORDER BY p.likes DESC, p.dislikes ASC"
+	default:
+		orderClause = "ORDER BY p.created_at DESC"
+	}
+
+	// Assemble query parts in correct order
+	if len(joinClauses) > 0 {
+		baseQuery += " " + strings.Join(joinClauses, " ")
+		countQuery += " " + strings.Join(joinClauses, " ")
+	}
 	if len(whereClauses) > 0 {
 		where := " WHERE " + strings.Join(whereClauses, " AND ")
 		baseQuery += where
 		countQuery += where
 	}
+	baseQuery += " " + orderClause
 
 	// Pagination
 	baseQuery += " LIMIT ? OFFSET ?"
 	args = append(args, filters.Limit, filters.Offset)
 
-	// Get total count
+	// Count
 	var total int
-	err := database.GetDB().QueryRow(countQuery, args[:len(args)-2]...).Scan(&total) // exclude limit/offset
+	err := database.GetDB().QueryRow(countQuery, args[:len(args)-2]...).Scan(&total)
 	if err != nil {
 		return posts, 0, err
 	}
 
-	// Get posts
+	// Execute posts query
 	rows, err := database.GetDB().Query(baseQuery, args...)
 	if err != nil {
 		return posts, 0, err
@@ -160,9 +174,13 @@ func GetPosts(filters PostFilters) ([]Post, int, error) {
 
 	for rows.Next() {
 		var post Post
-		err := rows.Scan(&post.ID, &post.Title, &post.Content, &post.UserID, &post.Username,
-			&post.CategoryID, &post.CategoryName, &post.Likes, &post.Dislikes,
-			&post.CreatedAt, &post.UpdatedAt, &post.CommentCount)
+		err := rows.Scan(
+			&post.ID, &post.Title, &post.Content,
+			&post.UserID, &post.Username,
+			&post.CategoryID, &post.CategoryName,
+			&post.Likes, &post.Dislikes,
+			&post.CreatedAt, &post.UpdatedAt, &post.CommentCount,
+		)
 		if err != nil {
 			continue
 		}
