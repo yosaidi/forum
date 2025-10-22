@@ -28,12 +28,12 @@ var (
 	globalMu sync.RWMutex
 
 	rateLimits = map[string]RateLimitConfig{
-		"auth":       {MaxRequests: 5, Window: 5 * time.Minute},
-		"posts":      {MaxRequests: 10, Window: time.Hour},
-		"comments":   {MaxRequests: 30, Window: time.Hour},
-		"users":      {MaxRequests: 60, Window: time.Minute},
-		"categories": {MaxRequests: 100, Window: time.Minute},
-		"default":    {MaxRequests: 20, Window: time.Minute},
+		"auth":       {MaxRequests: 10, Window: 10 * time.Minute},
+		"posts":      {MaxRequests: 100, Window: time.Hour},
+		"comments":   {MaxRequests: 80, Window: time.Hour},
+		"users":      {MaxRequests: 30, Window: 10 * time.Minute},
+		"categories": {MaxRequests: 50, Window: time.Hour},
+		"default":    {MaxRequests: 60, Window: time.Minute},
 	}
 
 	cleanupOnce sync.Once
