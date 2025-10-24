@@ -41,7 +41,6 @@ func OptionalAuth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-
 		// Get user information
 		userID, username, err := utils.GetCurrentUser(r)
 		if err != nil {
@@ -176,9 +175,4 @@ func getClientIP(r *http.Request) string {
 type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
-}
-
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
 }
