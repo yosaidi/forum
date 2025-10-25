@@ -75,7 +75,7 @@ func createCategoriesTable() {
 func createPostsTable() {
 	// Posts table creation with foreign keys to users and categories
 	query := `
-	CREATE TABLE IF NOt EXISTS posts(
+	CREATE TABLE IF NOT EXISTS posts(
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	title VARCHAR(255) NOT NULL,
 	content TEXT NOT NULL,
