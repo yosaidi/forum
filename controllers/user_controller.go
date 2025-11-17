@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -554,7 +555,7 @@ func getUserCommentLikes(userID int) (int, error) {
 
 func getUserPosts(userID, limit, offset int) ([]map[string]interface{}, error) {
 	query := `
-		SELECT p.id, p.title, p.content, p.category_id, p.created_at, p.updated_at,
+		SELECT p.id, p.title, p.content, p.created_at, p.updated_at,
 		       u.username, u.avatar,
 		       COALESCE(SUM(CASE WHEN v.vote_type = 'like' THEN 1 WHEN v.vote_type = 'dislike' THEN -1 ELSE 0 END), 0) as vote_score,
 		       COUNT(DISTINCT c.id) as comment_count
@@ -563,27 +564,28 @@ func getUserPosts(userID, limit, offset int) ([]map[string]interface{}, error) {
 		LEFT JOIN votes v ON p.id = v.post_id AND v.comment_id IS NULL
 		LEFT JOIN comments c ON p.id = c.post_id
 		WHERE p.user_id = ?
-		GROUP BY p.id, p.title, p.content, p.category_id, p.created_at, p.updated_at, u.username, u.avatar
+		GROUP BY p.id, p.title, p.content, p.created_at, p.updated_at, u.username, u.avatar
 		ORDER BY p.created_at DESC
 		LIMIT ? OFFSET ?
 	`
 
 	rows, err := database.GetDB().Query(query, userID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query error: %w", err)
 	}
 	defer rows.Close()
 
 	var posts []map[string]interface{}
 	for rows.Next() {
-		var id, voteScore, commentCount, categoryID int
-		var title, content, username, avatar string
+		var id, voteScore, commentCount int
+		var title, content, username string
+		var avatar sql.NullString
 		var createdAt, updatedAt time.Time
 
-		err := rows.Scan(&id, &title, &content, &categoryID, &createdAt, &updatedAt,
+		err := rows.Scan(&id, &title, &content, &createdAt, &updatedAt,
 			&username, &avatar, &voteScore, &commentCount)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan error: %w", err)
 		}
 
 		truncatedContent := content
@@ -591,22 +593,57 @@ func getUserPosts(userID, limit, offset int) ([]map[string]interface{}, error) {
 			truncatedContent = content[:200] + "..."
 		}
 
+		// Get categories for this post
+		categoryQuery := `
+			SELECT c.id, c.name
+			FROM categories c
+			INNER JOIN post_categories pc ON c.id = pc.category_id
+			WHERE pc.post_id = ?
+		`
+
+		categoryRows, err := database.GetDB().Query(categoryQuery, id)
+		if err != nil {
+			return nil, fmt.Errorf("category query error: %w", err)
+		}
+
+		var categories []map[string]interface{}
+		for categoryRows.Next() {
+			var catID int
+			var catName string
+			if err := categoryRows.Scan(&catID, &catName); err != nil {
+				categoryRows.Close()
+				return nil, fmt.Errorf("category scan error: %w", err)
+			}
+			categories = append(categories, map[string]interface{}{
+				"id":   catID,
+				"name": catName,
+			})
+		}
+		categoryRows.Close()
+
+		avatarStr := ""
+		if avatar.Valid {
+			avatarStr = strings.TrimSpace(avatar.String)
+		}
+
 		post := map[string]interface{}{
 			"id":            id,
 			"title":         title,
 			"content":       truncatedContent,
-			"category_id":   categoryID,
 			"created_at":    createdAt,
 			"updated_at":    updatedAt,
 			"author":        username,
-			"author_avatar": strings.TrimSpace(avatar),
+			"author_avatar": avatarStr,
 			"vote_score":    voteScore,
 			"comment_count": commentCount,
+			"categories":    categories,
 		}
 
-
-
 		posts = append(posts, post)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration error: %w", err)
 	}
 
 	return posts, nil

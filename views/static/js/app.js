@@ -116,7 +116,46 @@ export const app = {
     }
   },
 
-  async createPost(event) {
+  // async createPost(event) {
+  //   event.preventDefault();
+
+  //   if (!state.user) {
+  //     showMessage("Please login to create a post", "error");
+  //     return;
+  //   }
+
+  //   const title = document.getElementById("post-title").value;
+  //   const content = document.getElementById("post-content").value;
+  //   // const categoryId = parseInt(document.getElementById("post-category").value);
+
+  //   // const result = await createPost(title, content, categoryId);
+  //   // Get all selected options
+  // //   const select = document.getElementById("post-category");
+  // //   //const selectedCategories = Array.from(select.selectedOptions).map(opt => parseInt(opt.value));
+  // //   const selectedCategories = Array.from(document.querySelectorAll('#post-category input[type="checkbox"]:checked'))
+  // // .map(cb => parseInt(cb.value));
+  
+  // const select = document.getElementById("post-category");
+  // const selectedCategories = Array.from(select.selectedOptions)
+  //                                 .map(opt => parseInt(opt.value));
+
+
+  //   // Now selectedCategories is an array of integers
+  //   // Example: [1, 3] if user selected categories 1 and 3
+
+  //   const result = await createPost(title, content, selectedCategories);
+
+  //   if (result.success) {
+  //     showMessage("Post created successfully!", "success");
+  //     document.getElementById("post-title").value = "";
+  //     document.getElementById("post-content").value = "";
+  //     document.getElementById("post-category").value = "";
+  //     this.showHome();
+  //   } else {
+  //     showMessage(result.error, "error");
+  //   }
+  // },
+async createPost(event) {
     event.preventDefault();
 
     if (!state.user) {
@@ -126,21 +165,32 @@ export const app = {
 
     const title = document.getElementById("post-title").value;
     const content = document.getElementById("post-content").value;
-    const categoryId = parseInt(document.getElementById("post-category").value);
+    
+    // FIX: Get checked checkboxes instead of select options
+    const selectedCategories = Array.from(
+      document.querySelectorAll('#post-categories input[type="checkbox"]:checked')
+    ).map(cb => parseInt(cb.value));
 
-    const result = await createPost(title, content, categoryId);
+    // Validate at least one category is selected
+    if (selectedCategories.length === 0) {
+      showMessage("Please select at least one category", "error");
+      return;
+    }
+
+    const result = await createPost(title, content, selectedCategories);
 
     if (result.success) {
       showMessage("Post created successfully!", "success");
       document.getElementById("post-title").value = "";
       document.getElementById("post-content").value = "";
-      document.getElementById("post-category").value = "";
+      // Uncheck all checkboxes
+      document.querySelectorAll('#post-categories input[type="checkbox"]:checked')
+        .forEach(cb => cb.checked = false);
       this.showHome();
     } else {
       showMessage(result.error, "error");
     }
   },
-
   async handleDeletePost(postId) {
     if (!state.user) {
       showMessage("Please login to delete a post", "error");
@@ -236,25 +286,38 @@ export const app = {
     }
   },
 
-  async loadCategoriesForForm() {
-    try {
-      const select = document.getElementById("post-category");
-      select.innerHTML = '<option value="">Select a category</option>';
-
-      const result = await loadCategories();
-      if (result.success) {
-        state.categories.forEach((category) => {
-          const option = document.createElement("option");
-          option.value = category.id;
-          option.textContent = category.name;
-          select.appendChild(option);
-        });
-      }
-    } catch (error) {
-      console.error("Failed to load categories for form:", error);
+async loadCategoriesForForm() {
+  try {
+    const container = document.getElementById("post-categories");
+    
+    if (!container) {
+      console.error("post-categories container not found!");
+      return;
     }
-  },
-
+    
+    container.innerHTML = '';
+    
+    const result = await loadCategories();
+    if (result.success) {
+      state.categories.forEach((category) => {
+        const label = document.createElement("label");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.name = "categories";
+        checkbox.value = category.id;
+        
+        const span = document.createElement("span");
+        span.textContent = category.name;
+        
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        container.appendChild(label);
+      });
+    }
+  } catch (error) {
+    console.error("Failed to load categories for form:", error);
+  }
+},
   // Filtering and Sorting
   filterByCategory(categoryId) {
     state.currentCategory = categoryId;

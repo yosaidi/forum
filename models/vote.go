@@ -3,6 +3,8 @@ package models
 import (
 	"database/sql"
 	"errors"
+	"strconv"
+	"strings"
 	"time"
 
 	"forum/database"
@@ -173,18 +175,65 @@ func ToggleCommentVote(userID, commentID int, voteType string) (*VoteResult, err
 }
 
 // GetUserLikedPosts returns posts that a user has liked
+// func GetUserLikedPosts(userID int, limit, offset int) ([]Post, error) {
+// 	var posts []Post
+
+// 	query := `
+// 		SELECT p.id, p.title, p.content, p.user_id, u.username, p.category_id, c.name,
+// 		       p.likes, p.dislikes, p.created_at, p.updated_at,
+// 		       (SELECT COUNT(*) FROM comments WHERE post_id = p.id) as comment_count
+// 		FROM posts p
+// 		JOIN users u ON p.user_id = u.id
+// 		JOIN categories c ON p.category_id = c.id
+// 		JOIN votes v ON p.id = v.post_id
+// 		WHERE v.user_id = ? AND v.vote_type = 'like'
+// 		ORDER BY v.created_at DESC
+// 		LIMIT ? OFFSET ?
+// 	`
+
+// 	rows, err := database.GetDB().Query(query, userID, limit, offset)
+// 	if err != nil {
+// 		return posts, err
+// 	}
+// 	defer rows.Close()
+// 	// do i really need all that info ?
+// 	for rows.Next() {
+// 		var post Post
+// 		err := rows.Scan(&post.ID, &post.Title, &post.Content, &post.UserID, &post.Username,
+// 			&post.CategoryID, &post.CategoryName, &post.Likes, &post.Dislikes,
+// 			&post.CreatedAt, &post.UpdatedAt, &post.CommentCount)
+// 		if err != nil {
+// 			continue
+// 		}
+
+// 		// User has liked this post by definition
+// 		likeVote := "like"
+// 		post.UserVote = &likeVote
+
+// 		posts = append(posts, post)
+// 	}
+
+// 	return posts, nil
+// }
+
+// GetUserLikedPosts returns posts that a user has liked
 func GetUserLikedPosts(userID int, limit, offset int) ([]Post, error) {
 	var posts []Post
 
 	query := `
-		SELECT p.id, p.title, p.content, p.user_id, u.username, p.category_id, c.name,
+		SELECT p.id, p.title, p.content, p.user_id, u.username,
 		       p.likes, p.dislikes, p.created_at, p.updated_at,
-		       (SELECT COUNT(*) FROM comments WHERE post_id = p.id) as comment_count
+		       (SELECT COUNT(*) FROM comments WHERE post_id = p.id) as comment_count,
+		       GROUP_CONCAT(c.id) as category_ids,
+		       GROUP_CONCAT(c.name) as category_names
 		FROM posts p
 		JOIN users u ON p.user_id = u.id
-		JOIN categories c ON p.category_id = c.id
+		LEFT JOIN post_categories pc ON p.id = pc.post_id
+		LEFT JOIN categories c ON pc.category_id = c.id
 		JOIN votes v ON p.id = v.post_id
 		WHERE v.user_id = ? AND v.vote_type = 'like'
+		GROUP BY p.id, p.title, p.content, p.user_id, u.username, 
+		         p.likes, p.dislikes, p.created_at, p.updated_at
 		ORDER BY v.created_at DESC
 		LIMIT ? OFFSET ?
 	`
@@ -197,11 +246,30 @@ func GetUserLikedPosts(userID int, limit, offset int) ([]Post, error) {
 
 	for rows.Next() {
 		var post Post
-		err := rows.Scan(&post.ID, &post.Title, &post.Content, &post.UserID, &post.Username,
-			&post.CategoryID, &post.CategoryName, &post.Likes, &post.Dislikes,
-			&post.CreatedAt, &post.UpdatedAt, &post.CommentCount)
+		var categoryIDs, categoryNames sql.NullString
+		
+		err := rows.Scan(
+			&post.ID, &post.Title, &post.Content, &post.UserID, &post.Username,
+			&post.Likes, &post.Dislikes, &post.CreatedAt, &post.UpdatedAt, 
+			&post.CommentCount, &categoryIDs, &categoryNames,
+		)
 		if err != nil {
 			continue
+		}
+
+		// Parse category IDs and names from GROUP_CONCAT
+		if categoryIDs.Valid && categoryNames.Valid {
+			ids := strings.Split(categoryIDs.String, ",")
+			names := strings.Split(categoryNames.String, ",")
+			
+			post.Categories = make([]Category, 0, len(ids))
+			for i := range ids {
+				id, _ := strconv.Atoi(ids[i])
+				post.Categories = append(post.Categories, Category{
+					ID:   id,
+					Name: names[i],
+				})
+			}
 		}
 
 		// User has liked this post by definition

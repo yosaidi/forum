@@ -248,7 +248,7 @@ func ValidateLoginForm(username, password string) ValidationErrors {
 }
 
 // ValidatePostForm validates post creation/update data
-func ValidatePostForm(title, content string, categoryID int) ValidationErrors {
+func ValidatePostForm(title, content string, categoryIDs []int) ValidationErrors {
 	errors := make(ValidationErrors)
 
 	// Validate title
@@ -261,9 +261,29 @@ func ValidatePostForm(title, content string, categoryID int) ValidationErrors {
 		errors.Add("content", err.Error())
 	}
 
-	// Validate category
-	if categoryID <= 0 {
-		errors.Add("category", "please select a valid category")
+	// // Validate category
+	// if categoryID <= 0 {
+	// 	errors.Add("category", "please select a valid category")
+	// }
+		// Validate categories
+	if len(categoryIDs) == 0 {
+		errors.Add("categories", "At least one category is required")
+	} else if len(categoryIDs) > 5 {
+		errors.Add("categories", "Maximum 5 categories allowed")
+	} else {
+		// Check for duplicate category IDs
+		seen := make(map[int]bool)
+		for _, catID := range categoryIDs {
+			if catID <= 0 {
+				errors.Add("categories", "Invalid category ID")
+				break
+			}
+			if seen[catID] {
+				errors.Add("categories", "Duplicate category IDs not allowed")
+				break
+			}
+			seen[catID] = true
+		}
 	}
 
 	return errors

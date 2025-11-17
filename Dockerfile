@@ -1,24 +1,28 @@
-# Using Go with Alpine Linux
-FROM golang:1.20-alpine 
-
-# Set the working directory inside the container
+# ---- Build stage ----
+FROM golang:1.22-alpine AS builder
 WORKDIR /app
 
-# Install dependencies for mattn/go-sqlite3
-RUN apk add --no-cache gcc musl-dev sqlite-dev  
+# Install build deps
+RUN apk add --no-cache gcc musl-dev sqlite-dev
 
-# Copy go mod and sum files
-COPY go.mod go.sum ./   
+# Copy and download modules
+COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy the source code
+# Copy and build
 COPY . .
-
-# Build the Go application
 RUN go build -o forum main.go
 
-# Expose the port the app runs on
-EXPOSE 8080
+# ---- Runtime stage ----
+FROM alpine:latest
+WORKDIR /app
 
-# Command to run the executable
+# Install runtime deps for SQLite
+RUN apk add --no-cache sqlite-libs
+
+# Copy only the built binary from builder
+COPY --from=builder /app/forum .
+
+# Expose port and run
+EXPOSE 8080
 CMD ["./forum"]

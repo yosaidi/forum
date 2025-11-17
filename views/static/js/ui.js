@@ -27,8 +27,6 @@ export function renderPosts() {
                     <div class="post-meta">
                         <span>by ${escapeHtml(post.author.username)}</span>
                         <span>•</span>
-                        <span>${post.category}</span>
-                        <span>•</span>
                         <span>${formatDate(post.created_at)}</span>
                     </div>
                 </div>
@@ -83,8 +81,6 @@ export function renderSinglePost() {
             ${deleteBtn}
             <div class="post-meta">
                 <span>by ${escapeHtml(post.author.username)}</span>
-                <span>•</span>
-                <span>${post.category}</span>
                 <span>•</span>
                 <span>${formatDate(post.created_at)}</span>
             </div>

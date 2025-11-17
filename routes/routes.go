@@ -17,22 +17,34 @@ const (
 )
 
 // SetupRoutes configures all application routes using standard net/http
+// SetupRoutes configures all application routes using standard net/http
 func SetupRoutes() *http.ServeMux {
 	mux := http.NewServeMux()
 
-	// API routes with global middleware applied once
-	apiHandlerWithMiddlware := middleware.RateLimit(
-		middleware.LogRequests(
-			middleware.OptionalAuth(apiHandler()),
-		),
-	)
-	mux.Handle("/api/", apiHandlerWithMiddlware)
+	// Build the middleware chain with proper type conversions
+	handler := apiHandler()
+	
+	// Apply middlewares from innermost to outermost
+	handler = middleware.OptionalAuth(handler)
+	
+	// RateLimit returns http.Handler, so we need to convert back to HandlerFunc
+	rateLimitedHandler := middleware.RateLimit(handler)
+	
+	// Wrap the http.Handler back into HandlerFunc
+	handlerFunc := func(w http.ResponseWriter, r *http.Request) {
+		rateLimitedHandler.ServeHTTP(w, r)
+	}
+	
+	// Continue with remaining middlewares
+	handler = middleware.LogRequests(handlerFunc)
+	handler = middleware.Recovery(handler)
+	
+	mux.Handle("/api/", handler)
 
 	// Static files (CSS, JS, images, etc.)
 	mux.Handle("/static/",
 		http.StripPrefix("/static/",
-			http.FileServer(
-				http.Dir(StaticDir)),
+			http.FileServer(http.Dir(StaticDir)),
 		),
 	)
 
@@ -56,6 +68,78 @@ func SetupRoutes() *http.ServeMux {
 
 	return mux
 }
+// func SetupRoutes() *http.ServeMux {
+// 	mux := http.NewServeMux()
+
+// 	// Build the middleware chain with proper type conversions
+// 	handler := apiHandler()
+	
+// 	// Apply middlewares from innermost to outermost
+// 	handler = middleware.OptionalAuth(handler)
+	
+// 	// RateLimit returns http.Handler, so we need to convert back to HandlerFunc
+// 	rateLimitedHandler := middleware.RateLimit(handler)
+	
+// 	// Wrap the http.Handler back into HandlerFunc
+// 	handlerFunc := func(w http.ResponseWriter, r *http.Request) {
+// 		rateLimitedHandler.ServeHTTP(w, r)
+// 	}
+	
+// 	// Continue with remaining middlewares
+// 	handler = middleware.LogRequests(handlerFunc)
+// 	handler = middleware.Recovery(handler)
+	
+// 	mux.Handle("/api/", handler)
+
+// 	// Static files (CSS, JS, images, etc.)
+// 	mux.Handle("/static/",
+// 		http.StripPrefix("/static/",
+// 			http.FileServer(http.Dir(StaticDir)),
+// 		),
+// 	)
+
+// 	return mux
+// }
+// // SetupRoutes configures all application routes using standard net/http
+// func SetupRoutes() *http.ServeMux {
+// 	mux := http.NewServeMux()
+
+// 	// API routes with global middleware applied once
+// 	apiHandlerWithMiddlware := middleware.RateLimit(
+// 		middleware.LogRequests(
+// 			middleware.OptionalAuth(apiHandler()),
+// 		),
+// 	)
+// 	mux.Handle("/api/", apiHandlerWithMiddlware)
+
+// 	// Static files (CSS, JS, images, etc.)
+// 	mux.Handle("/static/",
+// 		http.StripPrefix("/static/",
+// 			http.FileServer(
+// 				http.Dir(StaticDir)),
+// 		),
+// 	)
+
+// 	// Uploaded files (avatars, etc.)
+// 	mux.Handle("/uploads/",
+// 		http.StripPrefix("/uploads/",
+// 			http.FileServer(http.Dir(UploadsDir)),
+// 		),
+// 	)
+
+// 	// SPA fallback for all other routes (except API & static)
+// 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+// 		if strings.HasPrefix(r.URL.Path, "/api/") ||
+// 			strings.HasPrefix(r.URL.Path, "/static/") ||
+// 			strings.HasPrefix(r.URL.Path, "/uploads/") {
+// 			http.NotFound(w, r)
+// 			return
+// 		}
+// 		http.ServeFile(w, r, IndexFile)
+// 	})
+
+// 	return mux
+// }
 
 // Route defines a single API route
 type Route struct {

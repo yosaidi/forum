@@ -102,13 +102,14 @@ func GetAllCategories() ([]Category, error) {
 	var categories []Category
 
 	query := `
-		SELECT c.id, c.name, c.description, c.created_at, c.updated_at,
-		       COUNT(p.id) as post_count
-		FROM categories c
-		LEFT JOIN posts p ON c.id = p.category_id
-		GROUP BY c.id, c.name, c.description, c.created_at, c.updated_at
-		ORDER BY c.name
-	`
+			SELECT c.id, c.name, c.description, c.created_at, c.updated_at,
+       		COUNT(DISTINCT pc.post_id) as post_count
+			FROM categories c
+			LEFT JOIN post_categories pc ON c.id = pc.category_id
+			GROUP BY c.id, c.name, c.description, c.created_at, c.updated_at
+			ORDER BY c.name
+
+		`
 
 	rows, err := database.GetDB().Query(query)
 	if err != nil {

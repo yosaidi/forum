@@ -43,14 +43,14 @@ export async function loadSinglePost(postId) {
   }
 }
 
-export async function createPost(title, content, categoryId) {
+export async function createPost(title, content, categoryIDs) {
   try {
     const response = await apiRequest("/posts", {
       method: "POST",
       body: JSON.stringify({
         title,
         content,
-        category_id: categoryId,
+        category_ids: categoryIDs,  // Changed from category_id to category_ids (array)
       }),
     });
 

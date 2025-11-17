@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"forum/database"
 	"forum/middleware"
 	"forum/models"
 	"forum/utils"
@@ -16,32 +15,37 @@ import (
 
 // PostCreateRequest represents the JSON structure for creating posts
 type PostCreateRequest struct {
-	Title      string `json:"title"`
-	Content    string `json:"content"`
-	CategoryID int    `json:"category_id"`
+	Title       string `json:"title"`
+	Content     string `json:"content"`
+	CategoryIDs []int  `json:"category_ids"`
 }
 
 // PostUpdateRequest represents the JSON structure for updating posts
 type PostUpdateRequest struct {
-	Title      string `json:"title"`
-	Content    string `json:"content"`
-	CategoryID int    `json:"category_id"`
+	Title       string `json:"title"`
+	Content     string `json:"content"`
+	CategoryIDs []int  `json:"category_ids"`
 }
 
 // PostResponse represents post data sent to client
 type PostResponse struct {
-	ID           int          `json:"id"`
-	Title        string       `json:"title"`
-	Content      string       `json:"content"`
-	CategoryID   int          `json:"category_id"`
-	Category     string       `json:"category"`
-	Author       UserResponse `json:"author"`
-	LikeCount    int          `json:"like_count"`
-	DislikeCount int          `json:"dislike_count"`
-	CommentCount int          `json:"comment_count"`
-	UserVote     *string      `json:"user_vote"` // "like", "dislike", or null
-	CreatedAt    time.Time    `json:"created_at"`
-	UpdatedAt    time.Time    `json:"updated_at"`
+	ID           int             `json:"id"`
+	Title        string          `json:"title"`
+	Content      string          `json:"content"`
+	Categories   []CategoryBrief `json:"categories"`
+	Author       UserResponse    `json:"author"`
+	LikeCount    int             `json:"like_count"`
+	DislikeCount int             `json:"dislike_count"`
+	CommentCount int             `json:"comment_count"`
+	UserVote     *string         `json:"user_vote"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
+}
+
+// CategoryBrief for embedding in post responses
+type CategoryBrief struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
 }
 
 // CreatePostController handles post creation
@@ -51,22 +55,20 @@ func CreatePostController(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get authenticated user (requires middleware)
 	userID, exists := middleware.GetUserIDFromContext(r)
 	if !exists {
 		utils.Unauthorized(w, "Authentication required")
 		return
 	}
 
-	// Parse JSON request body
 	var req PostCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, "Invalid JSON format")
 		return
 	}
 
-	// Validate post form
-	if errors := utils.ValidatePostForm(req.Title, req.Content, req.CategoryID); errors.HasErrors() {
+	// Validate post form (you'll need to update ValidatePostForm)
+	if errors := utils.ValidatePostForm(req.Title, req.Content, req.CategoryIDs); errors.HasErrors() {
 		utils.ValidationError(w, errors)
 		return
 	}
@@ -75,8 +77,15 @@ func CreatePostController(w http.ResponseWriter, r *http.Request) {
 	post := models.Post{
 		Title:      req.Title,
 		Content:    req.Content,
-		CategoryID: req.CategoryID,
 		UserID:     userID,
+		Categories: make([]models.Category, 0, len(req.CategoryIDs)),
+	}
+
+	// Convert category IDs to Category objects
+	for _, catID := range req.CategoryIDs {
+		post.Categories = append(post.Categories, models.Category{
+			ID: catID,
+		})
 	}
 
 	if err := post.Create(); err != nil {
@@ -84,7 +93,7 @@ func CreatePostController(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get full post details for responses
+	// Get full post details for response
 	postResponse, err := getPostResponse(&post, userID)
 	if err != nil {
 		utils.InternalServerError(w, "Failed to retrieve post details")
@@ -95,34 +104,29 @@ func CreatePostController(w http.ResponseWriter, r *http.Request) {
 
 // GetPostController handles retrieving a single post
 func GetPostController(w http.ResponseWriter, r *http.Request) {
-	// Only allow GET requests
 	if r.Method != http.MethodGet {
 		utils.MethodNotAllowed(w, "Only GET method allowed")
 		return
 	}
 
-	// Get post ID from URL path
 	postID, err := getPostIDFromPath(r.URL.Path)
 	if err != nil {
 		utils.BadRequest(w, "Invalid post ID")
 		return
 	}
 
-	// Get current user ID if available (for vote info)
 	userID, _ := middleware.GetUserIDFromContext(r)
 	var userIDPtr *int
 	if userID > 0 {
 		userIDPtr = &userID
 	}
 
-	// Get post from database
 	post := models.Post{}
 	if err := post.GetByID(postID, userIDPtr); err != nil {
 		utils.NotFound(w, "Post not found")
 		return
 	}
 
-	// Get full post details for response
 	postResponse, err := getPostResponse(&post, userID)
 	if err != nil {
 		utils.InternalServerError(w, "Failed to retrieve post details")
@@ -134,29 +138,26 @@ func GetPostController(w http.ResponseWriter, r *http.Request) {
 
 // UpdatePostController handles post updates
 func UpdatePostController(w http.ResponseWriter, r *http.Request) {
-	// Only allow PUT requests
 	if r.Method != http.MethodPut {
 		utils.MethodNotAllowed(w, "Only PUT method allowed")
 		return
 	}
 
-	// Get authenticated user
 	userID, exists := middleware.GetUserIDFromContext(r)
-	var userIDPtr *int
-	if userID > 0 {
-		userIDPtr = &userID
-	}
-
 	if !exists {
 		utils.Unauthorized(w, "Authentication required")
 		return
 	}
 
-	// Get post ID from URL path
 	postID, err := getPostIDFromPath(r.URL.Path)
 	if err != nil {
 		utils.BadRequest(w, "Invalid post ID")
 		return
+	}
+
+	var userIDPtr *int
+	if userID > 0 {
+		userIDPtr = &userID
 	}
 
 	post := models.Post{}
@@ -165,21 +166,19 @@ func UpdatePostController(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check ownership
 	if post.UserID != userID {
 		utils.Forbidden(w, "You can only edit your own posts")
 		return
 	}
 
-	// Parse JSON request body
 	var req PostUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, "Invalid JSON format")
 		return
 	}
 
-	// Validate post form
-	if errors := utils.ValidatePostForm(req.Title, req.Content, req.CategoryID); errors.HasErrors() {
+	// Validate post form (you'll need to update ValidatePostForm)
+	if errors := utils.ValidatePostForm(req.Title, req.Content, req.CategoryIDs); errors.HasErrors() {
 		utils.ValidationError(w, errors)
 		return
 	}
@@ -187,14 +186,17 @@ func UpdatePostController(w http.ResponseWriter, r *http.Request) {
 	// Update post fields
 	post.Title = req.Title
 	post.Content = req.Content
-	post.CategoryID = req.CategoryID
+	post.Categories = make([]models.Category, 0, len(req.CategoryIDs))
+
+	for _, catID := range req.CategoryIDs {
+		post.Categories = append(post.Categories, models.Category{ID: catID})
+	}
 
 	if err := post.Update(); err != nil {
 		utils.InternalServerError(w, "Failed to update post")
 		return
 	}
 
-	// Get full post details for response
 	postResponse, err := getPostResponse(&post, userID)
 	if err != nil {
 		utils.InternalServerError(w, "Failed to retrieve updated post details")
@@ -206,45 +208,39 @@ func UpdatePostController(w http.ResponseWriter, r *http.Request) {
 
 // DeletePostController handles post deletion
 func DeletePostController(w http.ResponseWriter, r *http.Request) {
-	// Only allow DELETE requests
 	if r.Method != http.MethodDelete {
 		utils.MethodNotAllowed(w, "Only DELETE method allowed")
 		return
 	}
 
-	// Get authenticated user
 	userID, exists := middleware.GetUserIDFromContext(r)
-	var userIDPtr *int
-	if userID > 0 {
-		userIDPtr = &userID
-	}
-
 	if !exists {
 		utils.Unauthorized(w, "Authentication required")
 		return
 	}
 
-	// Get post ID from URL path
 	postID, err := getPostIDFromPath(r.URL.Path)
 	if err != nil {
 		utils.BadRequest(w, "Invalid post ID")
 		return
 	}
 
-	// Get existing post
+	var userIDPtr *int
+	if userID > 0 {
+		userIDPtr = &userID
+	}
+
 	post := models.Post{}
 	if err := post.GetByID(postID, userIDPtr); err != nil {
 		utils.NotFound(w, "Post not found")
 		return
 	}
 
-	// Check ownership
 	if post.UserID != userID {
 		utils.Forbidden(w, "You can only delete your own posts")
 		return
 	}
 
-	// Delete post
 	if err := post.Delete(); err != nil {
 		utils.InternalServerError(w, "Failed to delete post")
 		return
@@ -255,16 +251,13 @@ func DeletePostController(w http.ResponseWriter, r *http.Request) {
 
 // GetPostsController handles retrieving multiple posts with filtering
 func GetPostsController(w http.ResponseWriter, r *http.Request) {
-	// Only allow GET requests
 	if r.Method != http.MethodGet {
 		utils.MethodNotAllowed(w, "Only GET method allowed")
 		return
 	}
 
-	// Parse query parameters
 	query := r.URL.Query()
 
-	// Pagination
 	page, _ := strconv.Atoi(query.Get("page"))
 	if page <= 0 {
 		page = 1
@@ -275,26 +268,22 @@ func GetPostsController(w http.ResponseWriter, r *http.Request) {
 		limit = 20
 	}
 
-	// Validate pagination
 	limit, offset, err := utils.ValidatePagination(page, limit)
 	if err != nil {
 		utils.BadRequest(w, err.Error())
 		return
 	}
 
-	// Filters
 	categoryID, _ := strconv.Atoi(query.Get("category"))
 	authorID, _ := strconv.Atoi(query.Get("author"))
-	sortBy := query.Get("sort") // "newest", "oldest", "popular" "my_posts", "my_likes"
+	sortBy := query.Get("sort")
 
 	if sortBy == "" {
 		sortBy = "newest"
 	}
 
-	// Get current user ID if available (for vote info)
 	userID, _ := middleware.GetUserIDFromContext(r)
 
-	// Get posts from database
 	posts, total, err := models.GetPosts(models.PostFilters{
 		CurrentUserID: userID,
 		CategoryID:    categoryID,
@@ -308,7 +297,6 @@ func GetPostsController(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert to response format
 	var postResponses []PostResponse
 	for _, post := range posts {
 		postResponse, err := getPostResponse(&post, userID)
@@ -319,7 +307,6 @@ func GetPostsController(w http.ResponseWriter, r *http.Request) {
 		postResponses = append(postResponses, *postResponse)
 	}
 
-	// Prepare pagination info
 	pagination := map[string]interface{}{
 		"current_page": page,
 		"per_page":     limit,
@@ -334,63 +321,56 @@ func GetPostsController(w http.ResponseWriter, r *http.Request) {
 
 // VotePostController handles post voting (like/dislike)
 func VotePostController(w http.ResponseWriter, r *http.Request) {
-	// Only allow POST requests
 	if r.Method != http.MethodPost {
 		utils.MethodNotAllowed(w, "Only POST method allowed")
 		return
 	}
 
-	// Get authenticated user
 	userID, exists := middleware.GetUserIDFromContext(r)
-	var userIDPtr *int
-	if userID > 0 {
-		userIDPtr = &userID
-	}
-
 	if !exists {
 		utils.Unauthorized(w, "Authentication required")
 		return
 	}
 
-	// Get post ID from URL path
 	postID, err := getPostIDFromPath(r.URL.Path)
 	if err != nil {
 		utils.BadRequest(w, "Invalid post ID")
 		return
 	}
 
-	// Parse vote type from request body
 	var voteData struct {
-		VoteType string `json:"vote_type"` // "like" or "dislike"
+		VoteType string `json:"vote_type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&voteData); err != nil {
 		utils.BadRequest(w, "Invalid JSON format")
 		return
 	}
 
-	// Validate vote type
 	if !utils.IsValidVoteType(voteData.VoteType) {
 		utils.BadRequest(w, "Vote type must be 'like' or 'dislike'")
 		return
 	}
 
-	// Check if post exists
+	var userIDPtr *int
+	if userID > 0 {
+		userIDPtr = &userID
+	}
+
 	post := models.Post{}
 	if err := post.GetByID(postID, userIDPtr); err != nil {
 		utils.NotFound(w, "Post not found")
 		return
 	}
 
-	// Create vote
-	result, err := models.TogglePostVote(userID, postID, voteData.VoteType) // This handles like/dislike toggle logic
+	result, err := models.TogglePostVote(userID, postID, voteData.VoteType)
 	if err != nil {
 		utils.InternalServerError(w, "Failed to process vote")
 		return
 	}
 
 	utils.Success(w, "Vote processed successfully", map[string]interface{}{
-		"action":        result.Action,   // "added", "removed", "changed"
-		"vote_type":     result.VoteType, // current vote type or null
+		"action":        result.Action,
+		"vote_type":     result.VoteType,
 		"like_count":    result.NewLikes,
 		"dislike_count": result.NewDislikes,
 	})
@@ -398,9 +378,7 @@ func VotePostController(w http.ResponseWriter, r *http.Request) {
 
 // Helper functions
 
-// getPostIDFromPath extracts post ID from URL path like /posts/123
 func getPostIDFromPath(path string) (int, error) {
-	// Remove "/api/posts/" prefix
 	path = strings.TrimPrefix(path, "/api/posts/")
 	parts := strings.Split(path, "/")
 	if len(parts) == 0 {
@@ -409,27 +387,22 @@ func getPostIDFromPath(path string) (int, error) {
 	return strconv.Atoi(parts[0])
 }
 
-// getPostResponse converts a Post model to PostResponse with additional data
 func getPostResponse(post *models.Post, currentUserID int) (*PostResponse, error) {
-	// Get author info
 	author := models.User{}
 	if err := author.GetByID(post.UserID); err != nil {
 		return nil, err
 	}
 
-	// Get vote counts
 	likeCount, dislikeCount, err := post.GetVoteCounts()
 	if err != nil {
 		return nil, err
 	}
 
-	// Get comment count
 	commentCount, err := post.GetCommentCount()
 	if err != nil {
 		return nil, err
 	}
 
-	// Get user's vote if logged in
 	var userVote *string
 	if currentUserID > 0 {
 		vote := models.Vote{}
@@ -438,20 +411,20 @@ func getPostResponse(post *models.Post, currentUserID int) (*PostResponse, error
 		}
 	}
 
-	// Get category name
-	var categoryName string
-	query := `SELECT name FROM categories WHERE id = ?`
-	err = database.GetDB().QueryRow(query, post.CategoryID).Scan(&categoryName)
-	if err != nil {
-		categoryName = "Unknown" // fallback
+	// Map categories from post
+	categories := make([]CategoryBrief, 0, len(post.Categories))
+	for _, cat := range post.Categories {
+		categories = append(categories, CategoryBrief{
+			ID:   cat.ID,
+			Name: cat.Name,
+		})
 	}
 
 	return &PostResponse{
 		ID:         post.ID,
 		Title:      post.Title,
 		Content:    post.Content,
-		CategoryID: post.CategoryID,
-		Category:   categoryName,
+		Categories: categories, // Changed from single category
 		Author: UserResponse{
 			ID:       author.ID,
 			Username: author.Username,

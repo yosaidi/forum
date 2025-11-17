@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -176,8 +178,32 @@ type responseWriter struct {
 	http.ResponseWriter
 	statusCode int
 }
-
+// cause all default to 200 which is delulu
+// WriteHeader captures the status code when it's written
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.statusCode = code
 	rw.ResponseWriter.WriteHeader(code)
+}
+
+
+// Recovery middleware catches panics and returns 500
+func Recovery(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				// Log the panic with stack trace (server-side only)
+				log.Printf("PANIC: %v\n%s", err, debug.Stack())
+				
+				// Return clean 500 to client (no stack trace leak)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"success": false,
+					"message": "Internal server error",
+					"data":    nil,
+				})
+			}
+		}()
+		next(w, r)
+	}
 }
